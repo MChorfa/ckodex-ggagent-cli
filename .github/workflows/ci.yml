@@ -35,4 +35,4 @@ jobs:
         run: cargo build --workspace --release
 
       - name: Run Day-2 Doctor
-        run: ./target/release/ggagent doctor
+        run: cargo run --release -- doctor

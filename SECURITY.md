@@ -119,3 +119,42 @@ Forensic investigations require non-repudiable state reconstruction. `ForensicBu
 - Signed Ed25519 execution receipts
 - Objective failure classification
 - Top-level Root Manifest SHA-256 digest verifiable offline.
+
+---
+
+## 11. Network Egress Governance & Cloud Metadata Defense (Chapters 20 & 21)
+
+### Problem Description
+Untrusted code executed within an agent sandbox may attempt Server-Side Request Forgery (SSRF) against cloud instance metadata services (`http://169.254.169.254/computeMetadata/v1/` or AWS IMDSv2) to exfiltrate IAM role credentials, or probe internal private subnets (RFC 1918).
+
+### Architecture Defense: NetworkEgressGuard
+`NetworkEgressGuard` inspects every outgoing network target:
+1. Hard-coded, non-bypassable denial of `169.254.169.254`, `metadata.google.internal`, and link-local ranges.
+2. Default denial of private IPv4 address blocks (`10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`).
+3. Port allowlisting (restricting connections exclusively to authorized ports such as 443/80).
+4. `AirGapped` policy mode: strictly blocks all network egress.
+
+---
+
+## 12. Sandbox Isolation Profiles & Syscall Least Authority (Chapters 20 & 21)
+
+### Problem Description
+Vulnerable sandboxes allow compromised agent workers to mount filesystems, load kernel BPF modules, trace host processes, or overwrite critical system files.
+
+### Architecture Defense: SandboxProfile
+`ggagent` defines verifiable OS containment profiles:
+1. **Landlock Access Scopes**: Root `/` is read-only, workspace `/tmp/workspace` is read-write, while sensitive locations (`/etc/shadow`, `~/.ssh`, `~/.aws`, `/proc/kcore`) are explicitly barred.
+2. **Seccomp BPF Rules**: Restricts syscalls to a minimal allowlist (`read`, `write`, `exit_group`, `futex`), strictly denying `ptrace`, `bpf`, `kexec_load`, `mount`, and `chroot`.
+
+---
+
+## 13. Deterministic Checkpoint & Replay Fencing (Chapters 26 & 30)
+
+### Problem Description
+When recovering an interrupted task or analyzing a failed run, blindly replaying actions risks executing side effects twice (e.g. charging a payment, deleting a resource, or sending an duplicate external webhook).
+
+### Architecture Defense: ReplayEngine
+`ReplayEngine` restores task state deterministically from an immutable cryptographic `TaskCheckpoint`. Upon resumption:
+1. Monotonic generation is advanced ($N \to N+1$).
+2. Idempotency cache is pre-populated with previously executed effect tokens and receipts.
+3. In-flight duplicates or replayed calls are fenced immediately, preventing double mutation.

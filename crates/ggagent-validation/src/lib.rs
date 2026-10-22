@@ -15,6 +15,8 @@ pub mod effect_broker;
 pub mod error;
 pub mod guards;
 pub mod handoff_validator;
+pub mod network_guard;
+pub mod replay_engine;
 pub mod secret_guard;
 pub mod workspace_staging;
 
@@ -24,5 +26,7 @@ pub use effect_broker::{AtomicEffectBroker, EffectRequest};
 pub use error::ValidationError;
 pub use guards::SecurityGuards;
 pub use handoff_validator::HandoffValidator;
+pub use network_guard::NetworkEgressGuard;
+pub use replay_engine::{ReplayEngine, ResumedTaskState};
 pub use secret_guard::SecretGuard;
 pub use workspace_staging::{SealedCandidate, WorkspaceStagingGuard};

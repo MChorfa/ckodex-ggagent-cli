@@ -65,7 +65,8 @@ Commands:
   a2a         Google Agent-to-Agent (A2A) protocol operations
   subagents   Explore and execute the 77 Canonical Subagent Strategies
   harness     Cross-Harness interoperability bridge (Antigravity, Claude Code, Codex, OpenCode, SAM Mesh)
-  doctor      Deep Day-2 diagnostic suite (Doctor)
+  forensic    Export or inspect tamper-evident post-mortem forensic evidence bundles
+  doctor      Deep Day-2 diagnostic suite (Doctor verifying 18 core systems)
   explain     Explain causal decision trace and authority path for a task
   verify      Verify cryptographic execution receipt or DSSE envelope
 ```
@@ -95,12 +96,24 @@ Commands:
 # List harness profiles
 ./bin/ggagent harness list
 
+# Verify adapter conformance across all 6 harnesses
+./bin/ggagent harness verify
+
 # Format cross-family dispatch
 ./bin/ggagent harness dispatch claude "Review state transition conformance"
 ./bin/ggagent harness dispatch codex "Audit AtomicEffectGuard use-time binding"
 ```
 
-### 4. Evaluate Conformance Vectors
+### 4. Forensic Evidence Bundles
+```bash
+# Export post-mortem forensic bundle
+./bin/ggagent forensic export --task task-101 --output /tmp/bundle.json
+
+# Inspect and verify root manifest SHA-256 digest
+./bin/ggagent forensic inspect /tmp/bundle.json
+```
+
+### 5. Evaluate Conformance Vectors
 ```bash
 ./bin/ggagent eval run --conformal-alpha 0.05
 ```

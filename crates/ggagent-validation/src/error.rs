@@ -50,4 +50,10 @@ pub enum ValidationError {
 
     #[error("Secret leakage detected in execution payload: {0}")]
     SecretLeakageViolation(String),
+
+    #[error("Network egress governance violation: {0}")]
+    EgressViolation(String),
+
+    #[error("Deterministic replay violation: {0}")]
+    ReplayViolation(String),
 }

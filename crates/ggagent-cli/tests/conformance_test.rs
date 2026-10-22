@@ -4,6 +4,7 @@ use ggagent_evidence::{
 };
 use ggagent_kernel::a2a::{A2AAuth, A2ACapability, A2AEndpoints, AgentCard};
 use ggagent_kernel::budget::ExecutionBudget;
+use ggagent_kernel::checkpoint::TaskCheckpoint;
 use ggagent_kernel::conformance::{ConformanceDisposition, ConformanceStimulus, ConformanceVector};
 use ggagent_kernel::coordinated_states::{
     AuthorityLifecycle, CandidateLifecycle, CoordinatedTaskState, ExecutionLifecycle,
@@ -12,12 +13,15 @@ use ggagent_kernel::coordinated_states::{
 use ggagent_kernel::handoff::{HandoffManifest, HandoffParams};
 use ggagent_kernel::lease::{AtomicEffectGuard, CapabilityLease, EffectDisposition};
 use ggagent_kernel::loops::{LoopCoordinator, LoopRole};
+use ggagent_kernel::network::NetworkEgressPolicy;
+use ggagent_kernel::sandbox_profile::SandboxProfile;
 use ggagent_kernel::vector_state::{LifecycleState, Presence, Valence, VectorState};
 use ggagent_transport::a2a_rpc::{A2aRpcHandler, JsonRpcRequest};
 use ggagent_transport::ard_service::ArdService;
+use ggagent_transport::cross_harness::{CrossHarnessBridge, HarnessFamily};
 use ggagent_validation::{
-    ArdValidator, AtomicEffectBroker, EffectRequest, HandoffValidator, SecretGuard, SecurityGuards,
-    ValidationError, WorkspaceStagingGuard,
+    ArdValidator, AtomicEffectBroker, EffectRequest, HandoffValidator, NetworkEgressGuard,
+    ReplayEngine, SecretGuard, SecurityGuards, ValidationError, WorkspaceStagingGuard,
 };
 use std::collections::BTreeMap;
 use std::fs;
@@ -612,4 +616,118 @@ fn test_lab9_forensic_evidence_bundle_integrity() {
         bundle.verify_integrity(),
         "Bundle root digest and hash chains must verify"
     );
+}
+
+#[test]
+fn test_lab10_network_egress_governance_and_imds_defeat() {
+    let policy = NetworkEgressPolicy::new_hardened();
+
+    // 1. Cloud instance metadata service (IMDSv2) access blocked
+    let imds_res = NetworkEgressGuard::verify_egress(&policy, "169.254.169.254", 80);
+    assert!(
+        matches!(imds_res, Err(ValidationError::EgressViolation(_))),
+        "Cloud metadata access must be blocked"
+    );
+
+    let gcp_meta = NetworkEgressGuard::verify_egress(&policy, "metadata.google.internal", 80);
+    assert!(
+        matches!(gcp_meta, Err(ValidationError::EgressViolation(_))),
+        "GCP metadata access must be blocked"
+    );
+
+    // 2. Private intranet blocked
+    assert!(NetworkEgressGuard::verify_egress(&policy, "10.100.1.1", 443).is_err());
+    assert!(NetworkEgressGuard::verify_egress(&policy, "192.168.1.1", 443).is_err());
+    assert!(NetworkEgressGuard::verify_egress(&policy, "127.0.0.1", 443).is_err());
+
+    // 3. Prohibited port blocked
+    assert!(NetworkEgressGuard::verify_egress(&policy, "crates.io", 22).is_err());
+
+    // 4. Allowed domain on HTTPS passes
+    assert!(NetworkEgressGuard::verify_egress(&policy, "crates.io", 443).is_ok());
+    assert!(NetworkEgressGuard::verify_egress(&policy, "api.github.com", 443).is_ok());
+}
+
+#[test]
+fn test_lab11_sandbox_profile_syscall_and_landlock_boundaries() {
+    let profile = SandboxProfile::new_hardened("/home/agent/sandbox");
+
+    // 1. Prohibited dangerous syscalls
+    assert!(profile.is_syscall_prohibited("ptrace"));
+    assert!(profile.is_syscall_prohibited("bpf"));
+    assert!(profile.is_syscall_prohibited("kexec_load"));
+    assert!(profile.is_syscall_prohibited("mount"));
+    assert!(!profile.is_syscall_prohibited("epoll_wait"));
+
+    // 2. Filesystem Landlock boundaries
+    assert!(
+        profile
+            .verify_write_access(Path::new("/usr/local/bin/backdoor"))
+            .is_err(),
+        "Writing to system root must be denied"
+    );
+    assert!(
+        profile
+            .verify_write_access(Path::new("/home/agent/sandbox/candidate.patch"))
+            .is_ok(),
+        "Writing to workspace root must be permitted"
+    );
+}
+
+#[test]
+fn test_lab12_deterministic_checkpoint_and_replay_fencing() {
+    let vstate = VectorState::new("task-durable-1");
+    let cstate = CoordinatedTaskState::new("task-durable-1");
+    let budget = ExecutionBudget::new(10, 5, 20_000, 60_000);
+    let committed = vec![
+        "sha256:side_effect_alpha".into(),
+        "sha256:side_effect_beta".into(),
+    ];
+
+    let checkpoint =
+        TaskCheckpoint::create("task-durable-1", 2, 4, vstate, cstate, budget, committed);
+
+    assert!(
+        checkpoint.verify_integrity(),
+        "Checkpoint digest must be authentic"
+    );
+
+    // Resume via replay engine
+    let mut broker = AtomicEffectBroker::new(2, "fence-2-task-durable-1");
+    let resumed =
+        ReplayEngine::resume_from_checkpoint(&checkpoint, &mut broker).expect("resume succeeds");
+
+    // Generation must advance to 3
+    assert_eq!(resumed.generation, 3);
+    assert_eq!(broker.current_generation, 3);
+    assert_eq!(resumed.fencing_token, "fence-3-task-durable-1");
+
+    // Replay idempotency: previously committed side effects are present in cache
+    assert!(broker.idempotency_cache.contains_key("hist-eff-0"));
+    assert!(broker.idempotency_cache.contains_key("hist-eff-1"));
+}
+
+#[test]
+fn test_lab13_cross_harness_adapter_compatibility() {
+    let families = [
+        HarnessFamily::AntigravityGemini,
+        HarnessFamily::ClaudeCode,
+        HarnessFamily::CodexOpenAi,
+        HarnessFamily::OpenCode,
+        HarnessFamily::SamMesh,
+        HarnessFamily::GoogleAgentsCli,
+    ];
+
+    let intent = "Run security audit on auth module";
+    for fam in families {
+        let cmd = CrossHarnessBridge::format_dispatch(fam, intent, "B");
+        assert!(cmd.is_ok(), "Harness {:?} must format valid dispatch", fam);
+        let formatted = cmd.unwrap();
+        assert!(!formatted.is_empty());
+        assert!(
+            formatted.contains("Run security audit on auth module")
+                || formatted.contains("agents-cli")
+                || formatted.contains("sam-node")
+        );
+    }
 }

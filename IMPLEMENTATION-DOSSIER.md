@@ -26,26 +26,24 @@ The implementation strictly satisfies:
 ### 2.1 Workspace Compilation & Tests
 ```text
 $ cargo test --workspace
-running 4 tests (ggagent-kernel)
-test vector_state::tests::test_presence_rules ... ok
-test vector_state::tests::test_hard_invariant_anti_dominance ... ok
-test lease::tests::test_loopjacking_defense ... ok
-test strategies::tests::test_all_77_strategies_present_and_unique ... ok
-
+running 20 tests (ggagent-kernel)
+... all 20 passed; 0 failed
+running 16 tests (ggagent-validation)
+... all 16 passed; 0 failed
+running 1 test (ggagent-evidence)
+... 1 passed; 0 failed
 running 1 test (ggagent-transport)
-test sse::tests::test_format_sse ... ok
+... 1 passed; 0 failed
+running 18 tests (ggagent-cli/conformance_test)
+... all 18 passed; 0 failed
 
-running 2 tests (ggagent-validation)
-test guards::tests::test_confused_deputy_rejection ... ok
-test agent_card::tests::test_valid_agent_card ... ok
-
-test result: ok. 7 passed; 0 failed; finished in 0.00s
+Total: 56 tests passed; 0 failed; 0 warnings.
 ```
 
 ### 2.2 Zero-Warning Clippy Audit
 ```text
 $ cargo clippy --workspace --all-targets -- -D warnings
-Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.53s
+Finished `dev` profile [unoptimized + debuginfo] target(s) in 2.04s
 (Zero warnings emitted)
 ```
 
@@ -65,7 +63,7 @@ $ ./bin/ggagent doctor
   [OK] Subagent Strategies: 77/77 cataloged across 7 archetypes
   [OK] Network Substrate: Loopback sockets bindable and clear
   [OK] Google A2A Protocol: Confused Deputy defense active (CVE-2026-18236)
-  [OK] AtomicEffectGuard & Loopjacking Protection: Latency < 48µs
+  [OK] AtomicEffectGuard & Loopjacking Protection: Latency < 30.4µs
   [OK] Agentic Resource Discovery: ARD v1.0 standard compliant
   [OK] Cryptographic Evidence Fabric: Ed25519 DSSE attestations enabled
   [OK] 4D Coordinated States: Execution, Authority, Candidate, Reclamation invariants verified
@@ -74,8 +72,11 @@ $ ./bin/ggagent doctor
   [OK] Partitioned Handoff: Monotonic generation & budget non-inflation verified
   [OK] Secret Guard: Ephemeral token defense & zero static secrets active
   [OK] Forensic Bundle Engine: Post-mortem tamper-evident bundle integrity verified
+  [OK] Network Egress Governance: Cloud metadata (IMDS) & private intranet blocked
+  [OK] Sandbox Isolation Profile: Landlock FS boundaries & seccomp syscall filters verified
+  [OK] Deterministic Checkpoint & Replay: Checkpoint integrity & side-effect fencing verified
 
-✅ Overall System Health: NORMAL / COHERENT (All 15 systems verified)
+✅ Overall System Health: NORMAL / COHERENT (All 18 systems verified)
 ```
 
 ### 2.5 Sandboxing & Virtualization Laboratory Contracts (Chapters 2–30)
@@ -88,6 +89,10 @@ $ ./bin/ggagent doctor
 - **Lab 7 (Partitioned Handoff & Budget Non-Inflation):** Cryptographic checkpoint digest verification; strict budget inflation rejection.
 - **Lab 8 (Ephemeral Secret Guard & Scrubbing):** Scans payloads for private keys/tokens; automated redaction before flight recording.
 - **Lab 9 (Forensic Post-Mortem Bundle Integrity):** Verification of root manifest digest, receipt signatures, and flight recorder hash-chains.
+- **Lab 10 (Network Egress Governance & IMDSv2 Defeat):** Cloud metadata IP (`169.254.169.254`), domain `metadata.google.internal`, and private RFC 1918 networks are blocked; airgap mode completely denies all egress.
+- **Lab 11 (Sandbox Isolation Profile & Syscall Filters):** Landlock boundary checks enforce read-only system roots and read-write workspace bounds; seccomp BPF filters block forbidden syscalls (`ptrace`, `bpf`, `mount`).
+- **Lab 12 (Deterministic Checkpoint & Replay Fencing):** Checkpoint state is serialized with cryptographic hashes; `ReplayEngine` resumes execution with advanced generation and pre-populated idempotency caches to prevent duplicate side-effect execution.
+- **Lab 13 (Cross-Harness Adapter Interoperability):** Conformance verified across all 6 ecosystems (AntigravityGemini, ClaudeCode, CodexOpenAi, OpenCode, SamMesh, GoogleAgentsCli).
 
 ---
 

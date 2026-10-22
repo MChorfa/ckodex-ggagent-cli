@@ -14,12 +14,15 @@
 pub mod a2a;
 pub mod ard;
 pub mod budget;
+pub mod checkpoint;
 pub mod conformance;
 pub mod coordinated_states;
 pub mod error;
 pub mod handoff;
 pub mod lease;
 pub mod loops;
+pub mod network;
+pub mod sandbox_profile;
 pub mod strategies;
 pub mod vector_state;
 
@@ -27,6 +30,7 @@ pub mod vector_state;
 pub use a2a::{A2AEvent, A2AMessage, A2APart, A2ARole, A2ATask, A2ATaskState, AgentCard};
 pub use ard::{ArdCapability, ArdDocument, ArdEndpoint, ArdProtocol, ArdResource, ArdResourceType};
 pub use budget::ExecutionBudget;
+pub use checkpoint::TaskCheckpoint;
 pub use conformance::{
     ConformanceDisposition, ConformanceEvaluationResult, ConformanceStimulus, ConformanceVector,
 };
@@ -41,6 +45,8 @@ pub use loops::{
     CommandRequest, EventReport, EvidenceClaim, GovernanceDecision, GovernanceDisposition,
     LoopCoordinator, LoopRole,
 };
+pub use network::{EgressMode, NetworkEgressPolicy};
+pub use sandbox_profile::{ProfileTier, SandboxProfile};
 pub use strategies::{StrategyArchetype, StrategyRegistry, SubagentStrategy};
 pub use vector_state::{
     AntiRelation, Coherence, EvidenceStatus, LifecycleState, Presence, RuntimeMode, Valence,

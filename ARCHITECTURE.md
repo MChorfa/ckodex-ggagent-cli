@@ -110,6 +110,32 @@ Task migration across nodes or partitions is governed by `HandoffManifest`:
 ### 8. Forensic Evidence Bundles (Chapters 18 & 30)
 Tamper-evident post-mortem bundle (`ForensicBundle`) uniting vector state, coordinated state, hash-chained flight recorder events across 4 truth channels, signed execution receipts, and failure classification under a top-level root SHA-256 manifest.
 
+### 9. Network Egress Governance & Cloud Metadata Defeat (Chapters 20 & 21)
+Prevents credential exfiltration and SSRF attacks:
+- `DefaultDeny`: Blocks all external network traffic by default.
+- `CloudMetadata`: Enforces strict, non-bypassable blocking of cloud instance metadata services (`169.254.169.254`, `metadata.google.internal`) defeating IMDSv2 credential theft.
+- `IntranetProtection`: Blocks private RFC 1918 addresses (`10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`) and unauthorized ports (e.g. 22 SSH, 3389 RDP).
+- `AirGapped`: Pure zero-egress enforcement for sovereign or assured workloads.
+
+### 10. Sandbox Isolation Profiles (Chapters 20 & 21)
+OS-level virtualization boundary contracts:
+- **Filesystem Access Boundaries (Landlock)**: Enforces read-only root/system paths, read-write workspaces (`/tmp/workspace`), and explicit denial on sensitive host locations (`/etc/shadow`, `~/.ssh`, `~/.aws`).
+- **Syscall Filtering (Seccomp)**: Enforces strict default-deny BPF filters, admitting essential process lifecycle calls (`read`, `write`, `exit_group`) while barring high-risk primitives (`ptrace`, `bpf`, `kexec_load`, `mount`, `chroot`).
+
+### 11. Deterministic Checkpoint & Replay Engine (Chapters 26 & 30)
+Enables verifiable Day-2 post-mortem recovery and failure analysis:
+- Captures serializable, content-addressed `TaskCheckpoint` snapshots embedding state vectors, 4D coordinated states, budget usage, and execution receipts.
+- `ReplayEngine` resumes execution from checkpoints, monotonic generation advancement ($N \to N+1$), and pre-populates effect idempotency caches to strictly fence duplicate side effects upon re-execution.
+
+### 12. Cross-Harness Interoperability Adapters (Chapter 27)
+Provides unified A2A, ARD, and tool interfaces across all 6 major agent ecosystems:
+1. `AntigravityGemini` (Gemini CLI / ADK / A2A)
+2. `ClaudeCode` (Claude CLI / CLAUDE.md / MCP)
+3. `CodexOpenAi` (Codex CLI / Responses API / MCP)
+4. `OpenCode` (OpenCode runtime / JSON-RPC / MCP)
+5. `SamMesh` (SAM Agent Mesh / ARD / A2A)
+6. `GoogleAgentsCli` (Google Agents CLI / ADK v2)
+
 ---
 
 ## 🔄 Canonical Day-2 Control Loop
