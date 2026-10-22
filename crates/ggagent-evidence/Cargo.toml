@@ -5,6 +5,8 @@ edition.workspace = true
 rust-version.workspace = true
 authors.workspace = true
 license.workspace = true
+repository.workspace = true
+description = "Evidence fabric for ckodex-ggagent-cli: digests, receipts, DSSE envelopes, In-Toto attestations, and flight recorder"
 
 [dependencies]
 ggagent-kernel = { workspace = true }

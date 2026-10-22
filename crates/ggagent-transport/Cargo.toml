@@ -5,6 +5,8 @@ edition.workspace = true
 rust-version.workspace = true
 authors.workspace = true
 license.workspace = true
+repository.workspace = true
+description = "Explicit transport layer for ckodex-ggagent-cli: A2A JSON-RPC 2.0, SSE, ARD service, MCP bridge, and cross-harness adapters"
 
 [dependencies]
 ggagent-kernel = { workspace = true }

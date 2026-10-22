@@ -8,7 +8,16 @@ build:
 release:
 	cargo build --workspace --release
 	mkdir -p bin
-	cp /Users/mchorfa/.cache/cargo-target/release/ggagent ./bin/ggagent
+	@TARGET_DIR=$$(cargo metadata --format-version 1 2>/dev/null | grep -o '"target_directory":"[^"]*"' | cut -d'"' -f4); \
+	if [ -n "$$TARGET_DIR" ] && [ -f "$$TARGET_DIR/release/ggagent" ]; then \
+		cp "$$TARGET_DIR/release/ggagent" ./bin/ggagent; \
+	elif [ -f "target/release/ggagent" ]; then \
+		cp "target/release/ggagent" ./bin/ggagent; \
+	else \
+		find target -name "ggagent" -type f -perm +111 -exec cp {} ./bin/ggagent \; 2>/dev/null || true; \
+	fi
+	@chmod +x ./bin/ggagent
+	@echo "Built release binary at ./bin/ggagent"
 
 test:
 	cargo test --workspace

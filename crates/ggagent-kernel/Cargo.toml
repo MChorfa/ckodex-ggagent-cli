@@ -5,6 +5,8 @@ edition.workspace = true
 rust-version.workspace = true
 authors.workspace = true
 license.workspace = true
+repository.workspace = true
+description = "Pure domain semantic kernel for ckodex-ggagent-cli: vector state S(e,t), 77 subagent strategies, A2A/ARD models"
 
 [dependencies]
 serde = { workspace = true }
