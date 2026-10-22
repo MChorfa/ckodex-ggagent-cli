@@ -213,4 +213,78 @@ mod tests {
         assert_eq!(state.presence, Presence::Empty);
         assert_ne!(state.presence, Presence::Present);
     }
+
+    #[test]
+    fn test_property_anti_invariant_dominates_all_state_permutations() {
+        let presences = [
+            Presence::Empty,
+            Presence::Present,
+            Presence::Unknown,
+            Presence::Redacted,
+        ];
+        let valences = [
+            Valence::Positive,
+            Valence::Negative,
+            Valence::Neutral,
+            Valence::Mixed,
+            Valence::Unresolved,
+        ];
+        let coherences = [
+            Coherence::Coherent,
+            Coherence::PartiallyCoherent,
+            Coherence::Decoherent,
+            Coherence::Reconciling,
+        ];
+        let evidences = [
+            EvidenceStatus::Observed,
+            EvidenceStatus::Verified,
+            EvidenceStatus::Inferred,
+            EvidenceStatus::Unknown,
+        ];
+        let antis = [
+            AntiRelation::Attacks,
+            AntiRelation::Invalidates,
+            AntiRelation::Contradicts,
+        ];
+
+        // Exhaustively verify that whenever anti != None, conformance is FALSE
+        let mut count = 0;
+        for p in presences {
+            for v in valences {
+                for c in coherences {
+                    for e in evidences {
+                        for a in antis {
+                            let mut state = VectorState::new("test");
+                            state.presence = p;
+                            state.valence = v;
+                            state.coherence = c;
+                            state.evidence = e;
+                            state.anti = a;
+                            assert!(
+                                !state.is_conformant(),
+                                "Failed for permutation: {:?}",
+                                state
+                            );
+                            count += 1;
+                        }
+                    }
+                }
+            }
+        }
+        assert_eq!(count, 4 * 5 * 4 * 4 * 3); // 960 state permutations tested
+    }
+
+    #[test]
+    fn test_property_epoch_strictly_monotonic() {
+        let mut state = VectorState::new("agent-epoch");
+        assert_eq!(state.epoch, 0);
+
+        for step in 1..=500 {
+            state = state.transition_to(LifecycleState::Working);
+            assert_eq!(
+                state.epoch, step as u64,
+                "Epoch must increment strictly monotonically"
+            );
+        }
+    }
 }
