@@ -1,0 +1,25 @@
+[package]
+name = "ggagent-transport"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[dependencies]
+ggagent-kernel = { workspace = true }
+ggagent-validation = { workspace = true }
+ggagent-evidence = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tokio = { workspace = true }
+tokio-stream = { workspace = true }
+futures = { workspace = true }
+bytes = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+chrono = { workspace = true }
+uuid = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }

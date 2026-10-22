@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CKODEX ggagent Playground | Google A2A & ARD Runtime</title>
+  <style>
+    :root {
+      --bg: #0b0f19;
+      --card-bg: #111827;
+      --border: #1f2937;
+      --accent: #3b82f6;
+      --accent-glow: rgba(59, 130, 246, 0.2);
+      --text: #f3f4f6;
+      --text-muted: #9ca3af;
+      --success: #10b981;
+      --warn: #f59e0b;
+      --danger: #ef4444;
+      --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      padding: 24px;
+      line-height: 1.5;
+    }
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding-bottom: 20px;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 24px;
+    }
+    .badge {
+      background: #1e3a8a;
+      color: #93c5fd;
+      padding: 4px 10px;
+      border-radius: 9999px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      letter-spacing: 0.05em;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+      gap: 20px;
+    }
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 20px;
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.5);
+    }
+    .card h2 {
+      font-size: 1.1rem;
+      margin-bottom: 14px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: #e5e7eb;
+    }
+    .vector-state-box {
+      font-family: var(--mono);
+      background: #030712;
+      border: 1px solid #1e293b;
+      padding: 14px;
+      border-radius: 6px;
+      font-size: 0.85rem;
+      color: #38bdf8;
+      overflow-x: auto;
+    }
+    .strategy-item {
+      padding: 10px;
+      border-bottom: 1px solid #1e293b;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .strategy-item:hover {
+      background: #1e293b;
+    }
+    .btn {
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      padding: 8px 14px;
+      border-radius: 6px;
+      font-weight: 500;
+      cursor: pointer;
+      font-size: 0.85rem;
+    }
+    .btn:hover { background: #2563eb; }
+    .stream-log {
+      font-family: var(--mono);
+      background: #030712;
+      border: 1px solid #1e293b;
+      padding: 12px;
+      border-radius: 6px;
+      height: 220px;
+      overflow-y: auto;
+      font-size: 0.8rem;
+      color: #a7f3d0;
+    }
+    .meta-tag {
+      font-size: 0.7rem;
+      background: #374151;
+      padding: 2px 6px;
+      border-radius: 4px;
+      margin-left: 6px;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div>
+      <h1 style="font-size: 1.5rem; font-weight: 700;">CKODEX ggagent Playground</h1>
+      <p style="color: var(--text-muted); font-size: 0.85rem;">Canonical Cleanroom Google ADK & A2A Interoperability Runtime</p>
+    </div>
+    <div style="display: flex; gap: 10px; align-items: center;">
+      <span class="badge">A2A v1.0 Standard</span>
+      <span class="badge" style="background: #065f46; color: #a7f3d0;">ARD Enabled</span>
+      <span class="badge" style="background: #581c87; color: #e9d5ff;">77 Subagent Strategies</span>
+    </div>
+  </header>
+
+  <div class="grid">
+    <!-- Card 1: Vector State Monitor -->
+    <div class="card">
+      <h2>🌐 Vector State S(e,t) Monitor</h2>
+      <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 12px;">
+        Vector State, not booleans. Structural opposition dominates scores.
+      </p>
+      <div class="vector-state-box" id="state-display">
+        ⟨P:Present, V:Positive, A:None, C:Coherent, E:Verified, L:Executing, M:Normal, τ:12⟩
+      </div>
+      <div style="margin-top: 14px; display: flex; gap: 8px;">
+        <button class="btn" onclick="updateState('Normal')">Mode: Normal</button>
+        <button class="btn" style="background: #b45309;" onclick="updateState('Degraded')">Mode: Degraded</button>
+        <button class="btn" style="background: #991b1b;" onclick="triggerAnti()">Test Anti Violation</button>
+      </div>
+    </div>
+
+    <!-- Card 2: 77 Subagent Strategies Live Engine -->
+    <div class="card">
+      <h2>⚡ 77 Subagent Strategies Engine</h2>
+      <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 12px;">
+        Cataloged across 7 archetypes: Triage, Context Shield, Model Tier, Fencing, DAG, Verification, Day-2.
+      </p>
+      <div style="max-height: 220px; overflow-y: auto; border: 1px solid #1e293b; border-radius: 6px;">
+        <div class="strategy-item">
+          <div><strong>SAS-001</strong> Blind-First Planner <span class="meta-tag">Tier: R/Peer</span></div>
+          <button class="btn" style="padding: 4px 8px;" onclick="logEvent('Dispatched SAS-001 (Blind-First Planner)')">Dispatch</button>
+        </div>
+        <div class="strategy-item">
+          <div><strong>SAS-012</strong> Spoke-Window Isolation <span class="meta-tag">Context Rot Shield</span></div>
+          <button class="btn" style="padding: 4px 8px;" onclick="logEvent('Dispatched SAS-012 (Spoke-Window)')">Dispatch</button>
+        </div>
+        <div class="strategy-item">
+          <div><strong>SAS-037</strong> AtomicEffectGuard Binding <span class="meta-tag">Anti-Loopjacking</span></div>
+          <button class="btn" style="padding: 4px 8px;" onclick="logEvent('Verified SAS-037 (AtomicEffectGuard)')">Verify</button>
+        </div>
+        <div class="strategy-item">
+          <div><strong>SAS-038</strong> Confused Deputy Barrier <span class="meta-tag">CVE-2026-18236</span></div>
+          <button class="btn" style="padding: 4px 8px;" onclick="logEvent('Enforced SAS-038 (Confused Deputy)')">Test</button>
+        </div>
+        <div class="strategy-item">
+          <div><strong>SAS-067</strong> Day-2 Canonical Control Loop <span class="meta-tag">Reconciliation</span></div>
+          <button class="btn" style="padding: 4px 8px;" onclick="logEvent('Executed SAS-067 (Control Loop)')">Run</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Card 3: Google A2A & ARD Endpoints -->
+    <div class="card">
+      <h2>📡 Interoperability Endpoints</h2>
+      <div style="display: flex; flex-direction: column; gap: 8px; font-size: 0.85rem;">
+        <div><strong>ARD Discovery:</strong> <a style="color: #60a5fa;" href="/.well-known/ard.json" target="_blank">/.well-known/ard.json</a></div>
+        <div><strong>A2A Agent Card:</strong> <a style="color: #60a5fa;" href="/.well-known/agent-card.json" target="_blank">/.well-known/agent-card.json</a></div>
+        <div><strong>A2A JSON-RPC 2.0:</strong> <span style="font-family: var(--mono); color: #cbd5e1;">POST /api/v1/a2a</span></div>
+        <div><strong>A2A SSE Stream:</strong> <a style="color: #60a5fa;" href="/api/v1/a2a/events" target="_blank">GET /api/v1/a2a/events</a></div>
+      </div>
+      <div style="margin-top: 16px;">
+        <button class="btn" onclick="submitA2aTask()">Submit Sample A2A Task</button>
+      </div>
+    </div>
+
+    <!-- Card 4: Live Event Stream Console -->
+    <div class="card">
+      <h2>📜 Flight Recorder & SSE Stream</h2>
+      <div class="stream-log" id="stream-console">
+        [INIT] CKODEX ggagent runtime initialized successfully.<br>
+        [A2A] Listening for agent-to-agent protocol events.<br>
+        [ARD] Resource catalog populated and published.
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let epoch = 12;
+    function logEvent(msg) {
+      const console = document.getElementById('stream-console');
+      const time = new Date().toISOString().substring(11, 19);
+      console.innerHTML += `<br>[${time}] ${msg}`;
+      console.scrollTop = console.scrollHeight;
+    }
+
+    function updateState(mode) {
+      epoch++;
+      const display = document.getElementById('state-display');
+      display.innerText = `⟨P:Present, V:Positive, A:None, C:Coherent, E:Verified, L:Executing, M:${mode}, τ:${epoch}⟩`;
+      logEvent(`VectorState transitioned to Mode:${mode} (Epoch ${epoch})`);
+    }
+
+    function triggerAnti() {
+      epoch++;
+      const display = document.getElementById('state-display');
+      display.innerText = `⟨P:Present, V:Negative, A:Contradicts, C:Decoherent, E:Contradicted, L:Quarantined, M:SafeHold, τ:${epoch}⟩`;
+      display.style.color = '#ef4444';
+      logEvent(`CRITICAL: Anti-invariant triggered! Structural opposition forces NON-CONFORMANT quarantine.`);
+    }
+
+    async function submitA2aTask() {
+      logEvent('Submitting A2A task via JSON-RPC 2.0...');
+      try {
+        const res = await fetch('/api/v1/a2a', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            jsonrpc: "2.0",
+            id: 1,
+            method: "a2a.task.submit",
+            params: {
+              capability_id: "evaluate_conformance",
+              initiator_role: "human_user",
+              effect_guard: {
+                action: "verify",
+                target: "state_vector",
+                params: { "scope": "kernel" }
+              }
+            }
+          })
+        });
+        const data = await res.json();
+        logEvent(`A2A Task Accepted: ID=${data.result.task_id} State=${data.result.state}`);
+      } catch (err) {
+        logEvent(`Error submitting task: ${err}`);
+      }
+    }
+  </script>
+</body>
+</html>

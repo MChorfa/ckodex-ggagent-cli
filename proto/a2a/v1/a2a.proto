@@ -1,0 +1,148 @@
+syntax = "proto3";
+
+package a2a.v1;
+
+option go_package = "google.golang.org/adk/v2/a2a/v1;a2av1";
+
+// Google Agent-to-Agent (A2A) Protocol Service Definition
+service AgentService {
+  rpc Discover (DiscoverRequest) returns (AgentCard);
+  rpc SubmitTask (SubmitTaskRequest) returns (Task);
+  rpc GetTask (GetTaskRequest) returns (Task);
+  rpc CancelTask (CancelTaskRequest) returns (Task);
+  rpc ApproveTask (ApproveTaskRequest) returns (Task);
+  rpc WatchTask (WatchTaskRequest) returns (stream TaskEvent);
+}
+
+enum Role {
+  ROLE_UNSPECIFIED = 0;
+  ROLE_HUMAN_USER = 1;
+  ROLE_REMOTE_AGENT = 2;
+  ROLE_TOOL = 3;
+  ROLE_SYSTEM = 4;
+}
+
+enum TaskState {
+  TASK_STATE_UNSPECIFIED = 0;
+  TASK_STATE_SUBMITTED = 1;
+  TASK_STATE_WORKING = 2;
+  TASK_STATE_AUTH_REQUIRED = 3;
+  TASK_STATE_AUTH_RECEIVED = 4;
+  TASK_STATE_COMPLETED = 5;
+  TASK_STATE_FAILED = 6;
+  TASK_STATE_CANCELLED = 7;
+}
+
+message DiscoverRequest {}
+
+message AgentCard {
+  string schema = 1;
+  string name = 2;
+  string version = 3;
+  string description = 4;
+  Endpoints endpoints = 5;
+  repeated Capability capabilities = 6;
+  Authentication authentication = 7;
+  map<string, string> metadata = 8;
+}
+
+message Endpoints {
+  string rpc = 1;
+  string events = 2;
+}
+
+message Capability {
+  string id = 1;
+  string description = 2;
+  map<string, string> parameters = 3;
+}
+
+message Authentication {
+  string type = 1;
+  string token_endpoint = 2;
+}
+
+message SubmitTaskRequest {
+  string session_id = 1;
+  string capability_id = 2;
+  Role initiator_role = 3;
+  EffectGuard effect_guard = 4;
+  map<string, string> metadata = 5;
+}
+
+message EffectGuard {
+  string action = 1;
+  string target = 2;
+  string params_json = 3;
+  string expected_digest = 4;
+}
+
+message GetTaskRequest {
+  string task_id = 1;
+}
+
+message CancelTaskRequest {
+  string task_id = 1;
+  string reason = 2;
+}
+
+message ApproveTaskRequest {
+  string task_id = 1;
+  Role approver_role = 2;
+  string sender_id = 3;
+  EffectGuard material_action = 4;
+}
+
+message WatchTaskRequest {
+  string task_id = 1;
+}
+
+message Task {
+  string task_id = 1;
+  string session_id = 2;
+  TaskState state = 3;
+  Role initiator_role = 4;
+  string capability_id = 5;
+  repeated Message history = 6;
+  string required_effect_digest = 7;
+  repeated string output_artifacts = 8;
+  string failure_reason = 9;
+  int64 created_at_unix_ms = 10;
+  int64 updated_at_unix_ms = 11;
+  map<string, string> metadata = 12;
+}
+
+message Message {
+  string message_id = 1;
+  Role role = 2;
+  string sender_id = 3;
+  repeated Part parts = 4;
+  int64 timestamp_unix_ms = 5;
+  string confirmed_call_id = 6;
+}
+
+message Part {
+  oneof part_type {
+    string text = 1;
+    DataPart data = 2;
+    ArtifactRef artifact_ref = 3;
+  }
+}
+
+message DataPart {
+  string mime_type = 1;
+  bytes data = 2;
+}
+
+message ArtifactRef {
+  string uri = 1;
+  string sha256_digest = 2;
+}
+
+message TaskEvent {
+  string event_id = 1;
+  string task_id = 2;
+  string event_type = 3;
+  string payload_json = 4;
+  int64 timestamp_unix_ms = 5;
+}

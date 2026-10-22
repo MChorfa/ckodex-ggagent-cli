@@ -1,0 +1,29 @@
+use thiserror::Error;
+
+#[derive(Debug, Clone, PartialEq, Eq, Error)]
+pub enum ValidationError {
+    #[error("Agent card validation failed: {0}")]
+    InvalidAgentCard(String),
+
+    #[error("ARD document validation failed: {0}")]
+    InvalidArdDocument(String),
+
+    #[error("Confused deputy violation: inbound message from non-human role {role} attempted to confirm call {call_id}")]
+    ConfusedDeputyViolation { role: String, call_id: String },
+
+    #[error("Loopjacking violation: effect digest mismatch for action {action} (expected {expected}, actual {actual})")]
+    LoopjackingViolation {
+        action: String,
+        expected: String,
+        actual: String,
+    },
+
+    #[error("Mandatory anti-invariant violation: {0}")]
+    AntiInvariantViolation(String),
+
+    #[error("Capability lease violation: operation {operation} not permitted by lease {lease_id}")]
+    LeaseViolation { lease_id: String, operation: String },
+
+    #[error("Schema validation failed: {field}: {reason}")]
+    SchemaMismatch { field: String, reason: String },
+}

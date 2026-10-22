@@ -1,0 +1,53 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/ggagent-kernel",
+    "crates/ggagent-validation",
+    "crates/ggagent-evidence",
+    "crates/ggagent-transport",
+    "crates/ggagent-cli",
+]
+
+[workspace.package]
+version = "0.2.0"
+edition = "2021"
+rust-version = "1.80"
+authors = ["CKODEX Architecture & Operations Team"]
+license = "Apache-2.0"
+repository = "https://github.com/ckodex/ckodex-ggagent-cli"
+
+[workspace.dependencies]
+# Internal workspace crates
+ggagent-kernel = { path = "crates/ggagent-kernel" }
+ggagent-validation = { path = "crates/ggagent-validation" }
+ggagent-evidence = { path = "crates/ggagent-evidence" }
+ggagent-transport = { path = "crates/ggagent-transport" }
+
+# Serialization & Deserialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# Cryptography & Identifiers
+sha2 = "0.10"
+hex = "0.4"
+base64 = "0.22"
+uuid = { version = "1.8", features = ["v4", "serde"] }
+chrono = { version = "0.4", features = ["serde"] }
+
+# Async & Concurrency
+tokio = { version = "1.38", features = ["full"] }
+tokio-stream = "0.1"
+futures = "0.3"
+bytes = "1.6"
+
+# Observability
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
+
+# CLI & Errors
+clap = { version = "4.5", features = ["derive", "env"] }
+thiserror = "1.0"
+anyhow = "1.0"
+
+# Testing
+tempfile = "3.10"
