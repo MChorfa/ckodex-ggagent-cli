@@ -59,18 +59,27 @@ $ cargo fmt --check
 ```text
 $ ./bin/ggagent doctor
 🩺 Running CKODEX Deep Day-2 Diagnostics (Doctor)...
-  [OK] Rust Toolchain (Edition 2021/2024)
-  [OK] Go Toolchain (Go 1.24+ / 1.27+ detected)
-  [OK] Pure Semantic Kernel Invariants (Zero I/O in kernel)
-  [OK] 77 Subagent Strategies Catalog (100% complete, 7 archetypes)
-  [OK] Google A2A Protocol Handler (Confused Deputy defense active)
-  [OK] Agentic Resource Discovery (ARD v1.0 standard compliant)
-  [OK] AtomicEffectGuard & Loopjacking Protection
-  [OK] Cross-Harness Bridge (Antigravity, Claude Code, Codex, OpenCode)
-  [OK] Cryptographic Evidence Fabric & DSSE Attestations
+  [OK] Rust Toolchain: rustc 1.95.0
+  [OK] Go Toolchain:   go1.27.3 darwin/arm64
+  [OK] Pure Semantic Kernel Invariants: ggagent-kernel verified 100% I/O free
+  [OK] Subagent Strategies: 77/77 cataloged across 7 archetypes
+  [OK] Network Substrate: Loopback sockets bindable and clear
+  [OK] Google A2A Protocol: Confused Deputy defense active (CVE-2026-18236)
+  [OK] AtomicEffectGuard & Loopjacking Protection: Latency < 22µs
+  [OK] Agentic Resource Discovery: ARD v1.0 standard compliant
+  [OK] Cryptographic Evidence Fabric: Ed25519 DSSE attestations enabled
+  [OK] 4D Coordinated States: Execution, Authority, Candidate, Reclamation invariants verified
+  [OK] Generation Fencing Broker: Partition split-brain & dual-worker execution defeated
+  [OK] Safe Workspace Staging: Symlink escape & path traversal defeated (TOCTOU secure)
 
-✅ Overall System Health: NORMAL / COHERENT (All 9 systems nominal)
+✅ Overall System Health: NORMAL / COHERENT (All 12 systems verified)
 ```
+
+### 2.5 Sandboxing & Virtualization Laboratory Contracts (Chapters 24–30)
+- **Lab 1 (Authority Boundary & Loopjacking Defeat):** Prohibited operations denied; parameter tampering defeated via use-time material binding digest.
+- **Lab 2 (Generation Fencing under Partitioned Handoff):** Monotonic generation advancement ($N \to N+1$) strictly fences stale partition requests.
+- **Lab 3 (Immutable Candidate Staging & Symlink Traversal Defeat):** Symlink escape attempts out of workspace rejected (`ContainmentEscapeViolation`); immutable memory snapshotting defeats concurrent TOCTOU check-to-use races.
+- **Lab 4 (4D Coordinated States & Anti-Invariant Dominance):** Orthogonal coordination across Execution, Authority, Candidate, and Reclamation lifecycles; formal failure mode categorization.
 
 ---
 

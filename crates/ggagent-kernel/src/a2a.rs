@@ -1,3 +1,4 @@
+use crate::coordinated_states::FailureClassification;
 use crate::error::KernelError;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -63,6 +64,12 @@ pub struct A2ATask {
     pub required_effect_digest: Option<String>,
     pub output_artifacts: Vec<String>,
     pub failure_reason: Option<String>,
+    /// Four-mode formal failure classification (Chapter 30)
+    pub failure_class: Option<FailureClassification>,
+    /// Monotonic execution generation for fencing token issuance (Chapters 24-26)
+    pub generation: u64,
+    /// Fencing token tied to generation
+    pub fencing_token: String,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
     pub metadata: BTreeMap<String, String>,
@@ -76,8 +83,10 @@ impl A2ATask {
         initiator: A2ARole,
     ) -> Self {
         let now = Utc::now();
+        let tid = task_id.into();
+        let fence = format!("fence-0-{}", &tid);
         Self {
-            task_id: task_id.into(),
+            task_id: tid,
             session_id: session_id.into(),
             state: A2ATaskState::TaskStateSubmitted,
             initiator_role: initiator,
@@ -86,10 +95,21 @@ impl A2ATask {
             required_effect_digest: None,
             output_artifacts: Vec::new(),
             failure_reason: None,
+            failure_class: None,
+            generation: 0,
+            fencing_token: fence,
             created_at: now,
             updated_at: now,
             metadata: BTreeMap::new(),
         }
+    }
+
+    /// Advance generation on task migration / partition recovery
+    pub fn advance_generation(&mut self) -> u64 {
+        self.generation += 1;
+        self.fencing_token = format!("fence-{}-{}", self.generation, self.task_id);
+        self.updated_at = Utc::now();
+        self.generation
     }
 
     /// Advance task state according to A2A FSM transition rules

@@ -11,10 +11,14 @@
 
 pub mod agent_card;
 pub mod ard_validator;
+pub mod effect_broker;
 pub mod error;
 pub mod guards;
+pub mod workspace_staging;
 
 pub use agent_card::AgentCardValidator;
 pub use ard_validator::ArdValidator;
+pub use effect_broker::{AtomicEffectBroker, EffectRequest};
 pub use error::ValidationError;
 pub use guards::SecurityGuards;
+pub use workspace_staging::{SealedCandidate, WorkspaceStagingGuard};

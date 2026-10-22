@@ -4,6 +4,8 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
 /// Scoped, attenuated, time-bounded authority grant.
+/// Includes monotonic generation fencing to defeat split-brain dual execution
+/// across distributed agent partitions (Chapters 24-26).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CapabilityLease {
     pub lease_id: String,
@@ -15,9 +17,45 @@ pub struct CapabilityLease {
     pub valid_from: DateTime<Utc>,
     pub valid_until: DateTime<Utc>,
     pub is_revoked: bool,
+    /// Monotonic execution generation for fencing token issuance
+    pub generation: u64,
+    /// Fencing token tied to generation: fence-{generation}-{lease_id}
+    pub fencing_token: String,
 }
 
 impl CapabilityLease {
+    pub fn new(
+        lease_id: impl Into<String>,
+        principal_id: impl Into<String>,
+        resource: impl Into<String>,
+        allowed_operations: Vec<String>,
+        valid_until: DateTime<Utc>,
+    ) -> Self {
+        let id = lease_id.into();
+        let fence = format!("fence-0-{}", &id);
+        Self {
+            lease_id: id,
+            parent_lease_id: None,
+            principal_id: principal_id.into(),
+            resource: resource.into(),
+            allowed_operations,
+            constraints: Vec::new(),
+            valid_from: Utc::now(),
+            valid_until,
+            is_revoked: false,
+            generation: 0,
+            fencing_token: fence,
+        }
+    }
+
+    /// Advance authority generation (e.g. on partition recovery or agent handoff).
+    /// Monotonically increments generation and derives a new unique fencing token.
+    pub fn advance_generation(&mut self) -> u64 {
+        self.generation += 1;
+        self.fencing_token = format!("fence-{}-{}", self.generation, self.lease_id);
+        self.generation
+    }
+
     pub fn is_valid(&self, at: DateTime<Utc>) -> bool {
         if self.is_revoked {
             return false;
@@ -56,8 +94,11 @@ impl CapabilityLease {
             valid_until
         };
 
+        let child_id = child_lease_id.into();
+        let child_fence = format!("fence-{}-{}", self.generation, &child_id);
+
         Ok(CapabilityLease {
-            lease_id: child_lease_id.into(),
+            lease_id: child_id,
             parent_lease_id: Some(self.lease_id.clone()),
             principal_id: child_principal.into(),
             resource: self.resource.clone(),
@@ -66,8 +107,33 @@ impl CapabilityLease {
             valid_from: Utc::now(),
             valid_until: child_expiry,
             is_revoked: false,
+            generation: self.generation,
+            fencing_token: child_fence,
         })
     }
+}
+
+/// Atomic Effect Broker Disposition (Chapters 25 & 26).
+/// Explicit status avoiding ambiguous execution states.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "status", rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum EffectDisposition {
+    Committed {
+        receipt_id: String,
+        effect_digest: String,
+        generation: u64,
+    },
+    Denied {
+        reason: String,
+    },
+    Fenced {
+        current_generation: u64,
+        received_generation: u64,
+        fencing_token: String,
+    },
+    Failed {
+        error: String,
+    },
 }
 
 /// Atomic Effect Guard: Defeats Loopjacking (arXiv:2609.21081)
@@ -130,6 +196,36 @@ impl AtomicEffectGuard {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_lease_generation_fencing() {
+        let mut lease = CapabilityLease::new(
+            "lease-001",
+            "principal-1",
+            "cluster/prod",
+            vec!["deploy".into(), "restart".into()],
+            Utc::now() + chrono::Duration::hours(1),
+        );
+
+        assert_eq!(lease.generation, 0);
+        assert_eq!(lease.fencing_token, "fence-0-lease-001");
+
+        let gen1 = lease.advance_generation();
+        assert_eq!(gen1, 1);
+        assert_eq!(lease.fencing_token, "fence-1-lease-001");
+
+        let child = lease
+            .attenuate(
+                "child-001",
+                "subagent-2",
+                vec!["restart".into()],
+                Utc::now() + chrono::Duration::minutes(30),
+            )
+            .expect("attenuate succeeds");
+
+        assert_eq!(child.generation, 1);
+        assert_eq!(child.fencing_token, "fence-1-child-001");
+    }
 
     #[test]
     fn test_loopjacking_defense() {

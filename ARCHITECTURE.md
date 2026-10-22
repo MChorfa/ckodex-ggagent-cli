@@ -46,6 +46,45 @@
 
 ---
 
+## 🛡️ Sandboxing & Virtualization Boundary Contracts (Chapters 24–30)
+
+Grounded in the formal virtualization and agent sandboxing contracts:
+
+### 1. 4-Dimensional Coordinated State Machines (Chapter 24)
+Collapsing execution, authority, candidate, and reclamation into a single lifecycle enum causes state-coupling bugs. `ggagent` coordinates 4 orthogonal dimensions:
+- **`ExecutionLifecycle`**: `REQUESTED` ➔ `ADMITTED` ➔ `PROVISIONING` ➔ `READY` ➔ `RUNNING` ➔ `STOPPING` ➔ `STOPPED` ➔ `DENIED` ➔ `FAILED`
+- **`AuthorityLifecycle`**: `PENDING` ➔ `ACTIVE` ➔ `SUSPENDED` ➔ `REVOKED` ➔ `EXPIRED` ➔ `CLOSED`
+- **`CandidateLifecycle`**: `ABSENT` ➔ `STAGED` ➔ `SEALED` ➔ `UNDER_REVIEW` ➔ `ACCEPTED` ➔ `REJECTED` ➔ `QUARANTINED`
+- **`ReclamationLifecycle`**: `ALLOCATED` ➔ `CLEANUP_PENDING` ➔ `RECLAIMED` ➔ `CLEANUP_FAILED`
+
+**Cross-State Invariants:**
+- `Execution::Running` strictly requires `Authority::Active`. Loss of authority immediately forces execution to `Stopping`.
+- `Reclamation::CleanupPending` prohibits new execution admissions and candidate staging.
+- `Candidate::Accepted` strictly requires prior `UnderReview` and `Authority::Active`.
+
+### 2. Monotonic Generation Fencing & Atomic Effect Broker (Chapters 25 & 26)
+In distributed or partitioned agent execution, network partitions can cause split-brain executions where an older worker emerges late to commit side effects.
+- Every lease carries monotonic `generation: u64` and `fencing_token: fence-{generation}-{lease_id}`.
+- When authority is migrated or recovered, the broker advances `generation N ➔ N + 1`.
+- Any worker attempting to execute an effect with `received_generation < current_generation` is strictly **FENCED** (`EffectDisposition::Fenced`).
+- Idempotency keys prevent duplicate side-effect execution upon replay.
+- Use-Time Material Binding (`AtomicEffectGuard`) eliminates parameter tampering and Loopjacking (arXiv:2609.21081).
+
+### 3. Safe Workspace Staging & Symlink Traversal Defeat (Chapters 21, 28, 29)
+Untrusted agent workloads produce candidates (patches, modified files) within mutable workspaces:
+- Paths are strictly validated relative to the workspace root, rejecting absolute paths and `..` directory traversal.
+- Symlinks pointing outside the workspace boundary are caught and rejected as `ContainmentEscapeViolation`.
+- Staged candidate files are sealed into immutable byte buffers with SHA-256 digests (`SealedCandidate`), defeating TOCTOU (check-to-use) workspace mutation races.
+
+### 4. Four Formal Failure Modes (Chapter 30)
+Rather than generic error codes, failure is categorized into four distinct modes:
+1. `ContainmentEscape`: Boundary violation attempts (symlink escape, unauthorized path traversal, illegal syscall/network access).
+2. `AuthorizedHarm`: Operation had valid authority, but caused destructive or un-reconcilable side effects.
+3. `VerificationFailure`: Candidate artifact or test assertion failed objective verification criteria.
+4. `GovernanceFailure`: Split-brain, stale generation fence, missing authority delegation, expired lease, or confused deputy approval.
+
+---
+
 ## 🔄 Canonical Day-2 Control Loop
 
 ```text

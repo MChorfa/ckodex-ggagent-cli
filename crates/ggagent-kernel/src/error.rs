@@ -1,3 +1,4 @@
+use crate::coordinated_states::FailureClassification;
 use thiserror::Error;
 
 /// Pure domain kernel errors (zero I/O dependencies).
@@ -33,4 +34,22 @@ pub enum KernelError {
 
     #[error("Missing mandatory authority for capability: {0}")]
     MissingAuthority(String),
+
+    #[error(
+        "Stale generation fencing violation: current={current}, received={received}, token={token}"
+    )]
+    StaleGeneration {
+        current: u64,
+        received: u64,
+        token: String,
+    },
+
+    #[error("Coordinated state invariant violation: {0}")]
+    CoordinatedStateViolation(String),
+
+    #[error("Classified failure [{class:?}]: {detail}")]
+    ClassifiedFailure {
+        class: FailureClassification,
+        detail: String,
+    },
 }

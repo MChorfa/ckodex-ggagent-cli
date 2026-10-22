@@ -26,4 +26,19 @@ pub enum ValidationError {
 
     #[error("Schema validation failed: {field}: {reason}")]
     SchemaMismatch { field: String, reason: String },
+
+    #[error("Containment escape violation: {0}")]
+    ContainmentEscapeViolation(String),
+
+    #[error(
+        "Stale generation fencing violation: current={current}, received={received}, token={token}"
+    )]
+    StaleGenerationViolation {
+        current: u64,
+        received: u64,
+        token: String,
+    },
+
+    #[error("Effect execution denied: {0}")]
+    EffectExecutionDenied(String),
 }

@@ -27,3 +27,6 @@ anyhow = { workspace = true }
 chrono = { workspace = true }
 uuid = { workspace = true }
 hex = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }

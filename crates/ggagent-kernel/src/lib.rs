@@ -14,6 +14,7 @@
 pub mod a2a;
 pub mod ard;
 pub mod conformance;
+pub mod coordinated_states;
 pub mod error;
 pub mod lease;
 pub mod strategies;
@@ -25,8 +26,12 @@ pub use ard::{ArdCapability, ArdDocument, ArdEndpoint, ArdProtocol, ArdResource,
 pub use conformance::{
     ConformanceDisposition, ConformanceEvaluationResult, ConformanceStimulus, ConformanceVector,
 };
+pub use coordinated_states::{
+    AuthorityLifecycle, CandidateLifecycle, CoordinatedTaskState, ExecutionLifecycle,
+    FailureClassification, ReclamationLifecycle,
+};
 pub use error::KernelError;
-pub use lease::{AtomicEffectGuard, CapabilityLease};
+pub use lease::{AtomicEffectGuard, CapabilityLease, EffectDisposition};
 pub use strategies::{StrategyArchetype, StrategyRegistry, SubagentStrategy};
 pub use vector_state::{
     AntiRelation, Coherence, EvidenceStatus, LifecycleState, Presence, RuntimeMode, Valence,

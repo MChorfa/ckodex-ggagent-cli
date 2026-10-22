@@ -56,3 +56,34 @@ All consequential executions emit:
 1. `ExecutionReceipt`: Carries task ID, actor ID, authority ID, input digest, output digest, effect digest, duration, exit code, and Ed25519 signature.
 2. `DsseEnvelope`: Wraps in-toto v1.0 software supply chain attestations (`https://in-toto.io/Statement/v1`) with predicate type `https://ckodex.io/attestation/execution-receipt/v1`.
 3. `FlightRecorder`: Append-only, privacy-scrubbed, hash-chained ledger verifying chronological execution integrity.
+
+---
+
+## 5. Generation Fencing & Split-Brain Execution Defense (Chapters 24–26)
+
+### Problem Description
+In distributed or sandboxed execution, network partitions, failovers, and agent handoffs can result in split-brain execution where an older, delayed worker emerges to commit unauthorized or stale side effects.
+
+### Architecture Defense: AtomicEffectBroker
+Every `CapabilityLease` embeds a monotonic `generation: u64` and cryptographic `fencing_token`.
+When authority migrates, the broker increments `generation N ➔ N + 1`. The `AtomicEffectBroker` rejects any mutation attempt where `received_generation < current_generation` with `EffectDisposition::Fenced`. Idempotency keys prevent duplicate side-effect execution across network retries.
+
+---
+
+## 6. Workspace Staging Containment & TOCTOU Defeat (Chapters 21, 28, 29)
+
+### Problem Description
+Sandboxed workloads produce deliverables within a mutable directory. Attackers may attempt directory traversal via `../`, external symlinks (`workspace/link -> /etc/shadow`), or modify files concurrently while an out-of-band verifier is evaluating them (check-to-use TOCTOU race).
+
+### Architecture Defense: WorkspaceStagingGuard
+`WorkspaceStagingGuard` canonicalizes candidate paths against the workspace root, detects external symlink escapes, and captures immutable in-memory snapshots (`SealedCandidate`) with SHA-256 digests. Subsequent mutations to workspace files have zero effect on the verified artifact.
+
+---
+
+## 7. Four Formal Failure Modes (Chapter 30)
+
+Failure is explicitly taxonomized into four non-interchangeable failure modes:
+1. `ContainmentEscape`: Boundary escape attempts (symlink traversal, path escalation, syscall violations).
+2. `AuthorizedHarm`: Permitted by credentials/lease, but produced destructive side effects.
+3. `VerificationFailure`: Candidate artifact or test assertion failed objective verification criteria.
+4. `GovernanceFailure`: Stale generation fencing, lease expiration, or confused deputy approval.
