@@ -12,11 +12,13 @@
 pub mod attestation;
 pub mod digest;
 pub mod flight_recorder;
+pub mod forensics;
 pub mod lineage;
 pub mod receipt;
 
 pub use attestation::{DsseEnvelope, DsseSignature, InTotoStatement, InTotoSubject};
 pub use digest::DigestEngine;
 pub use flight_recorder::{FlightRecorder, FlightRecorderEvent};
+pub use forensics::ForensicBundle;
 pub use lineage::{LineageLedger, StateMutationRecord};
 pub use receipt::{ExecutionReceipt, ExecutionReceiptParams};

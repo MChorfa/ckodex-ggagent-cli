@@ -52,4 +52,23 @@ pub enum KernelError {
         class: FailureClassification,
         detail: String,
     },
+
+    #[error(
+        "Execution budget exhausted on dimension '{dimension}': limit={limit}, consumed={consumed}"
+    )]
+    BudgetExhausted {
+        dimension: String,
+        limit: u64,
+        consumed: u64,
+    },
+
+    #[error("Budget attenuation exceeded on dimension '{dimension}': requested={requested}, remaining_parent={remaining_parent}")]
+    BudgetAttenuationExceeded {
+        dimension: String,
+        requested: u64,
+        remaining_parent: u64,
+    },
+
+    #[error("Invalid partitioned handoff: {reason}")]
+    InvalidHandoff { reason: String },
 }

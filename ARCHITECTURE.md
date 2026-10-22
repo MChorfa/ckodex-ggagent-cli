@@ -83,6 +83,33 @@ Rather than generic error codes, failure is categorized into four distinct modes
 3. `VerificationFailure`: Candidate artifact or test assertion failed objective verification criteria.
 4. `GovernanceFailure`: Split-brain, stale generation fence, missing authority delegation, expired lease, or confused deputy approval.
 
+### 5. Three-Loop Architecture & Message Primitives (Chapter 2)
+Responsibility separation across execution loops:
+- **`InnerLoop`**: Bounded worker iteration (receives admitted task, inspects context, calls tools, proposes candidates). Prohibited from granting itself authority or expanding budget.
+- **`OuterLoop`**: Independent verification (runs tests, linters, and invariant audits). Prohibited from publishing side effects or mutating production state.
+- **`GovernanceLoop`**: Authoritative coordinator (controls admission, capability leases, budget, promotion, revocation).
+
+Categorical Message Primitives:
+- `CommandRequest`: Requests an operation.
+- `EventReport`: Reports an occurrence.
+- `EvidenceClaim`: Submits a verifiable proposition with artifact digest.
+- `GovernanceDecision`: Authorizes an admission or promotion (`Admit`, `Deny`, `Promote`, `Revoke`, `Quarantine`).
+- `ExecutionReceipt`: Cryptographically records outcome.
+
+### 6. Multi-Dimensional Execution Budgeting & Monotonic Attenuation (Chapters 2, 14, 22)
+Tasks track four explicit resource dimensions: `max_steps`, `max_mutating_effects`, `max_tokens`, and `max_duration_ms`.
+- Monotonic attenuation: Subagent budgets MUST NOT exceed the remaining parent budget.
+- Exhaustion on any dimension automatically blocks new mutating effects.
+
+### 7. Partitioned Handoff Protocol & Zero-Credential Inheritance (Chapters 3 & 26)
+Task migration across nodes or partitions is governed by `HandoffManifest`:
+- Carries contract version, `source_generation`, `target_generation`, checkpoint digest, 7D vector state, 4D coordinated state, and remaining budget.
+- `HandoffValidator` verifies checkpoint cryptographic digest and enforces strict budget non-inflation.
+- Zero standing secrets are transferred; target nodes must re-bind ephemeral credentials.
+
+### 8. Forensic Evidence Bundles (Chapters 18 & 30)
+Tamper-evident post-mortem bundle (`ForensicBundle`) uniting vector state, coordinated state, hash-chained flight recorder events across 4 truth channels, signed execution receipts, and failure classification under a top-level root SHA-256 manifest.
+
 ---
 
 ## 🔄 Canonical Day-2 Control Loop

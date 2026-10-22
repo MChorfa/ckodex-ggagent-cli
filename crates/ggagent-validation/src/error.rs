@@ -41,4 +41,13 @@ pub enum ValidationError {
 
     #[error("Effect execution denied: {0}")]
     EffectExecutionDenied(String),
+
+    #[error("Invalid partitioned handoff: {0}")]
+    InvalidHandoffViolation(String),
+
+    #[error("Execution budget exhaustion: {0}")]
+    BudgetExhaustionViolation(String),
+
+    #[error("Secret leakage detected in execution payload: {0}")]
+    SecretLeakageViolation(String),
 }

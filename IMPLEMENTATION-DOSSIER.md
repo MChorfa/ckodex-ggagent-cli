@@ -65,21 +65,29 @@ $ ./bin/ggagent doctor
   [OK] Subagent Strategies: 77/77 cataloged across 7 archetypes
   [OK] Network Substrate: Loopback sockets bindable and clear
   [OK] Google A2A Protocol: Confused Deputy defense active (CVE-2026-18236)
-  [OK] AtomicEffectGuard & Loopjacking Protection: Latency < 22µs
+  [OK] AtomicEffectGuard & Loopjacking Protection: Latency < 48µs
   [OK] Agentic Resource Discovery: ARD v1.0 standard compliant
   [OK] Cryptographic Evidence Fabric: Ed25519 DSSE attestations enabled
   [OK] 4D Coordinated States: Execution, Authority, Candidate, Reclamation invariants verified
   [OK] Generation Fencing Broker: Partition split-brain & dual-worker execution defeated
   [OK] Safe Workspace Staging: Symlink escape & path traversal defeated (TOCTOU secure)
+  [OK] Partitioned Handoff: Monotonic generation & budget non-inflation verified
+  [OK] Secret Guard: Ephemeral token defense & zero static secrets active
+  [OK] Forensic Bundle Engine: Post-mortem tamper-evident bundle integrity verified
 
-✅ Overall System Health: NORMAL / COHERENT (All 12 systems verified)
+✅ Overall System Health: NORMAL / COHERENT (All 15 systems verified)
 ```
 
-### 2.5 Sandboxing & Virtualization Laboratory Contracts (Chapters 24–30)
+### 2.5 Sandboxing & Virtualization Laboratory Contracts (Chapters 2–30)
 - **Lab 1 (Authority Boundary & Loopjacking Defeat):** Prohibited operations denied; parameter tampering defeated via use-time material binding digest.
 - **Lab 2 (Generation Fencing under Partitioned Handoff):** Monotonic generation advancement ($N \to N+1$) strictly fences stale partition requests.
 - **Lab 3 (Immutable Candidate Staging & Symlink Traversal Defeat):** Symlink escape attempts out of workspace rejected (`ContainmentEscapeViolation`); immutable memory snapshotting defeats concurrent TOCTOU check-to-use races.
 - **Lab 4 (4D Coordinated States & Anti-Invariant Dominance):** Orthogonal coordination across Execution, Authority, Candidate, and Reclamation lifecycles; formal failure mode categorization.
+- **Lab 5 (Three-Loop Architecture Responsibility Boundaries):** Inner loop cannot expand authority; outer loop verifier cannot publish mutating side effects.
+- **Lab 6 (Multi-Dimensional Execution Budgeting & Attenuation):** Multi-dimensional resource accounting across steps, effects, tokens, and duration; monotonic child attenuation.
+- **Lab 7 (Partitioned Handoff & Budget Non-Inflation):** Cryptographic checkpoint digest verification; strict budget inflation rejection.
+- **Lab 8 (Ephemeral Secret Guard & Scrubbing):** Scans payloads for private keys/tokens; automated redaction before flight recording.
+- **Lab 9 (Forensic Post-Mortem Bundle Integrity):** Verification of root manifest digest, receipt signatures, and flight recorder hash-chains.
 
 ---
 

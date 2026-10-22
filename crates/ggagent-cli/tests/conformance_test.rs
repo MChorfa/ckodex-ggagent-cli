@@ -1,17 +1,23 @@
-use ggagent_evidence::{DsseEnvelope, FlightRecorder, InTotoStatement};
+use ggagent_evidence::{
+    DsseEnvelope, ExecutionReceipt, ExecutionReceiptParams, FlightRecorder, ForensicBundle,
+    InTotoStatement,
+};
 use ggagent_kernel::a2a::{A2AAuth, A2ACapability, A2AEndpoints, AgentCard};
+use ggagent_kernel::budget::ExecutionBudget;
 use ggagent_kernel::conformance::{ConformanceDisposition, ConformanceStimulus, ConformanceVector};
 use ggagent_kernel::coordinated_states::{
     AuthorityLifecycle, CandidateLifecycle, CoordinatedTaskState, ExecutionLifecycle,
     FailureClassification, ReclamationLifecycle,
 };
+use ggagent_kernel::handoff::{HandoffManifest, HandoffParams};
 use ggagent_kernel::lease::{AtomicEffectGuard, CapabilityLease, EffectDisposition};
+use ggagent_kernel::loops::{LoopCoordinator, LoopRole};
 use ggagent_kernel::vector_state::{LifecycleState, Presence, Valence, VectorState};
 use ggagent_transport::a2a_rpc::{A2aRpcHandler, JsonRpcRequest};
 use ggagent_transport::ard_service::ArdService;
 use ggagent_validation::{
-    ArdValidator, AtomicEffectBroker, EffectRequest, SecurityGuards, ValidationError,
-    WorkspaceStagingGuard,
+    ArdValidator, AtomicEffectBroker, EffectRequest, HandoffValidator, SecretGuard, SecurityGuards,
+    ValidationError, WorkspaceStagingGuard,
 };
 use std::collections::BTreeMap;
 use std::fs;
@@ -411,5 +417,199 @@ fn test_lab4_4d_coordinated_state_cross_machine_invariants() {
     assert_eq!(
         task.failure_classification,
         Some(FailureClassification::GovernanceFailure)
+    );
+}
+
+#[test]
+fn test_lab5_three_loop_architecture_responsibility_boundaries() {
+    let mut task = CoordinatedTaskState::new("loop-task-1");
+    task.transition_authority(AuthorityLifecycle::Active)
+        .unwrap();
+    task.transition_execution(ExecutionLifecycle::Running)
+        .unwrap();
+
+    // 1. Inner loop worker cannot expand lease or grant governance promotion
+    let inner_promote =
+        LoopCoordinator::validate_loop_action(LoopRole::InnerLoop, "promote", &task);
+    assert!(
+        inner_promote.is_err(),
+        "Inner loop must not execute governance promotion"
+    );
+
+    let inner_expand =
+        LoopCoordinator::validate_loop_action(LoopRole::InnerLoop, "expand_lease", &task);
+    assert!(
+        inner_expand.is_err(),
+        "Inner loop must not expand its own lease"
+    );
+
+    // 2. Outer loop verifier cannot publish mutating side effects
+    task.stage_candidate("sha256-test-patch").unwrap();
+    task.seal_candidate().unwrap();
+    let outer_publish =
+        LoopCoordinator::validate_loop_action(LoopRole::OuterLoop, "publish", &task);
+    assert!(
+        outer_publish.is_err(),
+        "Outer loop verifier must not publish mutations"
+    );
+}
+
+#[test]
+fn test_lab6_execution_budget_accounting_and_monotonic_attenuation() {
+    let mut budget = ExecutionBudget::new(3, 1, 10_000, 30_000);
+
+    // Consume steps
+    assert!(budget.record_step().is_ok());
+    assert!(budget.record_step().is_ok());
+    assert_eq!(budget.remaining_steps(), 1);
+
+    // Consume allowed mutating effect
+    assert!(budget.record_mutating_effect().is_ok());
+    assert_eq!(budget.remaining_effects(), 0);
+
+    // Attempting an additional mutating effect is strictly rejected
+    let over_effect = budget.record_mutating_effect();
+    assert!(
+        over_effect.is_err(),
+        "Mutating effect exceeding budget must be rejected"
+    );
+
+    // Attenuation monotonicity: child cannot request more steps than remaining in parent
+    let child_exceeded = budget.attenuate(5, 0, 1_000, 5_000);
+    assert!(
+        child_exceeded.is_err(),
+        "Child attenuation exceeding remaining parent budget must fail"
+    );
+
+    let valid_child = budget.attenuate(1, 0, 1_000, 5_000);
+    assert!(
+        valid_child.is_ok(),
+        "Attenuated budget within parent limits must succeed"
+    );
+}
+
+#[test]
+fn test_lab7_partitioned_handoff_and_budget_non_inflation() {
+    let vstate = VectorState::new("handoff-task");
+    let cstate = CoordinatedTaskState::new("handoff-task");
+    let budget = ExecutionBudget::new(5, 2, 5_000, 15_000);
+    let max_node_budget = ExecutionBudget::new(10, 5, 10_000, 30_000);
+
+    // 1. Valid handoff manifest
+    let manifest = HandoffManifest::new(HandoffParams {
+        task_id: "handoff-task".into(),
+        source_node_id: "node-west-1".into(),
+        target_node_id: "node-east-1".into(),
+        source_generation: 1,
+        target_generation: 2,
+        vector_state: vstate,
+        coordinated_state: cstate,
+        remaining_budget: budget,
+    })
+    .expect("create handoff manifest");
+
+    assert!(manifest.verify_digest(), "Checkpoint digest must verify");
+    assert!(
+        HandoffValidator::validate_handoff(&manifest, 1, &max_node_budget).is_ok(),
+        "Valid handoff must pass validation"
+    );
+
+    // 2. Budget inflation rejection
+    let inflated_budget = ExecutionBudget::new(50, 20, 50_000, 100_000);
+    let inflated_manifest = HandoffManifest::new(HandoffParams {
+        task_id: "handoff-task".into(),
+        source_node_id: "node-west-1".into(),
+        target_node_id: "node-east-1".into(),
+        source_generation: 1,
+        target_generation: 2,
+        vector_state: VectorState::new("handoff-task"),
+        coordinated_state: CoordinatedTaskState::new("handoff-task"),
+        remaining_budget: inflated_budget,
+    })
+    .expect("manifest with inflated budget");
+
+    let res = HandoffValidator::validate_handoff(&inflated_manifest, 1, &max_node_budget);
+    assert!(
+        matches!(res, Err(ValidationError::BudgetExhaustionViolation(_))),
+        "Budget inflation must be rejected by handoff validator"
+    );
+}
+
+#[test]
+fn test_lab8_ephemeral_secret_guard_and_scrubbing() {
+    // 1. Rejection of unredacted private keys
+    let leaky_payload = serde_json::json!({
+        "task": "deploy",
+        "ssh_key": "-----BEGIN OPENSSH PRIVATE KEY-----\nb3BlbnNza..."
+    });
+    let res = SecretGuard::assert_no_static_secrets(&leaky_payload);
+    assert!(
+        matches!(res, Err(ValidationError::SecretLeakageViolation(_))),
+        "Unredacted private key must trigger SecretLeakageViolation"
+    );
+
+    // 2. Secret scrubbing in logs/receipts
+    let sensitive_text =
+        "API request failed with token ghp_A1B2C3D4E5F6G7H8I9J0 and key AKIA112233445566";
+    let scrubbed = SecretGuard::scrub_secrets(sensitive_text);
+    assert!(!scrubbed.contains("ghp_"));
+    assert!(!scrubbed.contains("AKIA"));
+    assert!(scrubbed.contains("[REDACTED_SECRET]"));
+}
+
+#[test]
+fn test_lab9_forensic_evidence_bundle_integrity() {
+    let mut fr = FlightRecorder::new("flight-forensic-test");
+    fr.record_event(
+        "Telemetry",
+        "worker-1",
+        "auth:root",
+        "start",
+        "sha256:0",
+        "v2.0",
+    );
+    fr.record_event(
+        "Execution",
+        "worker-1",
+        "auth:root",
+        "apply_patch",
+        "sha256:1",
+        "v2.0",
+    );
+    fr.record_event(
+        "Evidence",
+        "verifier",
+        "auth:root",
+        "verify_signature",
+        "sha256:2",
+        "v2.0",
+    );
+
+    let receipt = ExecutionReceipt::from_params(ExecutionReceiptParams {
+        task_id: "forensic-task-1".into(),
+        actor_id: "worker-1".into(),
+        authority_id: "auth:root".into(),
+        capability_id: "patch_engine".into(),
+        action: "apply".into(),
+        input_digest: "sha256:input123".into(),
+        output_digest: "sha256:output456".into(),
+        effect_digest: "sha256:effect789".into(),
+        duration_ms: 88,
+        exit_code: 0,
+    });
+
+    let bundle = ForensicBundle::create(
+        "forensic-task-1",
+        VectorState::new("forensic-task-1"),
+        CoordinatedTaskState::new("forensic-task-1"),
+        &fr,
+        vec![receipt],
+        vec!["sha256:candidate_hash".into()],
+        Some(FailureClassification::VerificationFailure),
+    );
+
+    assert!(
+        bundle.verify_integrity(),
+        "Bundle root digest and hash chains must verify"
     );
 }

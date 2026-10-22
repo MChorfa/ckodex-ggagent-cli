@@ -87,3 +87,35 @@ Failure is explicitly taxonomized into four non-interchangeable failure modes:
 2. `AuthorizedHarm`: Permitted by credentials/lease, but produced destructive side effects.
 3. `VerificationFailure`: Candidate artifact or test assertion failed objective verification criteria.
 4. `GovernanceFailure`: Stale generation fencing, lease expiration, or confused deputy approval.
+
+---
+
+## 8. Partitioned Handoff Protocol & Budget Fencing (Chapters 3 & 26)
+
+### Problem Description
+Task migration across execution environments, failovers, or network partitions may lead to credential leaking, stale node takeovers, or budget inflation (e.g. an agent resetting its step count upon migration).
+
+### Architecture Defense: HandoffValidator
+Handoffs require a cryptographic `HandoffManifest` linking `source_generation` to `target_generation` with a SHA-256 checkpoint digest over the state vector. `HandoffValidator` strictly enforces generation monotonicity and budget non-inflation (remaining budget $\le$ maximum permitted budget).
+
+---
+
+## 9. Ephemeral Secret Scrubbing & Exfiltration Defense (Chapter 15)
+
+### Problem Description
+Static API keys or tokens embedded in tool calls, traces, or receipts present a persistent data leakage vector.
+
+### Architecture Defense: SecretGuard
+`SecretGuard` intercepts payloads and receipts, actively detecting and rejecting raw private keys or cloud credential tokens, and scrubbing sensitive authorization patterns (`[REDACTED_SECRET]`) prior to flight recording and receipt issuance.
+
+---
+
+## 10. Tamper-Evident Forensic Post-Mortem Bundles (Chapters 18 & 30)
+
+Forensic investigations require non-repudiable state reconstruction. `ForensicBundle` captures:
+- 7D Vector State snapshot $S(e,t)$
+- 4D Coordinated Lifecycle state
+- Cryptographic hash-chained flight recorder events across all 4 truth channels
+- Signed Ed25519 execution receipts
+- Objective failure classification
+- Top-level Root Manifest SHA-256 digest verifiable offline.
