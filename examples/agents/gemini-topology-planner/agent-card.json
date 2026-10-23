@@ -1,0 +1,30 @@
+{
+  "$schema": "https://a2aprotocol.org/schemas/v1/agent-card.json",
+  "name": "gemini-topology-planner",
+  "version": "1.0.0",
+  "description": "High-context repository topology mapping and blind-first planning agent powered by Google Gemini and ADK v2.",
+  "endpoints": {
+    "rpc": "http://127.0.0.1:8080/api/v1/a2a",
+    "events": "http://127.0.0.1:8080/api/v1/a2a/events"
+  },
+  "capabilities": [
+    {
+      "id": "map_repository_topology",
+      "description": "Ingests codebase AST and constructs DAG of module boundaries, imports, and authority edges.",
+      "parameters": {
+        "repo_path": { "type": "string", "description": "Absolute path to repository root" }
+      }
+    },
+    {
+      "id": "plan_blind_first",
+      "description": "Generates uninfluenced implementation plan before inspecting peer agent proposals (SAS-001).",
+      "parameters": {
+        "task_description": { "type": "string", "description": "Specification of the required modification" }
+      }
+    }
+  ],
+  "authentication": {
+    "type": "mtls_or_bearer",
+    "scopes": ["a2a:topology:read", "a2a:plan:write"]
+  }
+}

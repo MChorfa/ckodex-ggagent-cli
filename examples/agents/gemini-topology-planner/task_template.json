@@ -1,0 +1,17 @@
+{
+  "jsonrpc": "2.0",
+  "id": "task-gemini-plan-001",
+  "method": "a2a.task.submit",
+  "params": {
+    "capability_id": "plan_blind_first",
+    "initiator_role": "human_user",
+    "effect_guard": {
+      "action": "plan",
+      "target": "crates/ggagent-kernel",
+      "params": {
+        "objective": "Integrate zero-allocation state vector indexing",
+        "isolation": "blind-first"
+      }
+    }
+  }
+}

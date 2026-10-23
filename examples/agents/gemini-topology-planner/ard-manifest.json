@@ -1,0 +1,35 @@
+{
+  "version": "1.0",
+  "publisher": "CKODEX Architecture Team",
+  "domain": "agents.local",
+  "resources": [
+    {
+      "id": "gemini-topology-planner",
+      "name": "Gemini Topology Planner",
+      "type": "agent",
+      "version": "1.0.0",
+      "description": "Google Gemini ADK v2 planning agent for whole-repository cartography and uninfluenced plan generation.",
+      "endpoints": [
+        {
+          "name": "rpc",
+          "protocol": "a2a_rpc",
+          "uri": "http://127.0.0.1:8080/api/v1/a2a"
+        }
+      ],
+      "capabilities": [
+        {
+          "id": "map_repository_topology",
+          "name": "Repository Topology Mapper",
+          "description": "Constructs static and runtime dependency graphs across all workspace crates.",
+          "tags": ["topology", "ast", "gemini"]
+        },
+        {
+          "id": "plan_blind_first",
+          "name": "Blind-First Planner",
+          "description": "SAS-001 uninfluenced decomposition isolating planner from reviewer anchor bias.",
+          "tags": ["planning", "blind-first"]
+        }
+      ]
+    }
+  ]
+}

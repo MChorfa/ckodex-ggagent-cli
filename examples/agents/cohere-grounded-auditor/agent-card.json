@@ -1,0 +1,31 @@
+{
+  "$schema": "https://a2aprotocol.org/schemas/v1/agent-card.json",
+  "name": "cohere-grounded-auditor",
+  "version": "1.0.0",
+  "description": "Citation-grounded policy, regulation, and evidence auditor powered by Cohere Command R+ and Rerank v3.5.",
+  "endpoints": {
+    "rpc": "http://127.0.0.1:8080/api/v1/a2a",
+    "events": "http://127.0.0.1:8080/api/v1/a2a/events"
+  },
+  "capabilities": [
+    {
+      "id": "audit_evidence_grounding",
+      "description": "Verifies that all architectural claims map strictly to document byte-spans without hallucination (SAS-054).",
+      "parameters": {
+        "claim": { "type": "string", "description": "Proposition to audit" },
+        "reference_docs": { "type": "array", "description": "Authoritative document corpus" }
+      }
+    },
+    {
+      "id": "rerank_policy_invariants",
+      "description": "Cross-encoder reranking of relevant NIST SP 800-53 and constitutional security controls.",
+      "parameters": {
+        "query": { "type": "string", "description": "Control query" }
+      }
+    }
+  ],
+  "authentication": {
+    "type": "mtls_or_bearer",
+    "scopes": ["a2a:audit:read", "a2a:evidence:verify"]
+  }
+}

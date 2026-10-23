@@ -1,0 +1,30 @@
+{
+  "$schema": "https://a2aprotocol.org/schemas/v1/agent-card.json",
+  "name": "claude-kernel-refactor",
+  "version": "1.0.0",
+  "description": "Pure domain kernel refactoring and anti-slop code reviewer powered by Anthropic Claude Code.",
+  "endpoints": {
+    "rpc": "http://127.0.0.1:8080/api/v1/a2a",
+    "events": "http://127.0.0.1:8080/api/v1/a2a/events"
+  },
+  "capabilities": [
+    {
+      "id": "refactor_domain_kernel",
+      "description": "Refactors domain entities to ensure 100% I/O-free, database-free, and async-free purity (SAS-061).",
+      "parameters": {
+        "crate_path": { "type": "string", "description": "Path to kernel crate" }
+      }
+    },
+    {
+      "id": "audit_slop_and_tells",
+      "description": "Reviews codebase and documentation to purge AI tells, circular filler, and marketing puffery.",
+      "parameters": {
+        "target_file": { "type": "string", "description": "File to review" }
+      }
+    }
+  ],
+  "authentication": {
+    "type": "mtls_or_bearer",
+    "scopes": ["a2a:refactor:write", "a2a:quality:audit"]
+  }
+}

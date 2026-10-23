@@ -1,0 +1,35 @@
+{
+  "version": "1.0",
+  "publisher": "CKODEX Architecture Team",
+  "domain": "agents.local",
+  "resources": [
+    {
+      "id": "claude-kernel-refactor",
+      "name": "Claude Kernel Refactorer",
+      "type": "agent",
+      "version": "1.0.0",
+      "description": "Anthropic Claude Code architectural refactorer enforcing Clean Condamian domain kernel invariants.",
+      "endpoints": [
+        {
+          "name": "rpc",
+          "protocol": "a2a_rpc",
+          "uri": "http://127.0.0.1:8080/api/v1/a2a"
+        }
+      ],
+      "capabilities": [
+        {
+          "id": "refactor_domain_kernel",
+          "name": "Domain Kernel Refactorer",
+          "description": "Strips I/O, async runtimes, and external dependencies out of domain logic.",
+          "tags": ["claude", "refactoring", "clean-condamian", "ddd"]
+        },
+        {
+          "id": "audit_slop_and_tells",
+          "name": "Anti-Slop Quality Gate",
+          "description": "Eliminates decorative emojis, AI vocabulary, and promotional puffery from codebase docs.",
+          "tags": ["unslop", "quality-gate", "review"]
+        }
+      ]
+    }
+  ]
+}

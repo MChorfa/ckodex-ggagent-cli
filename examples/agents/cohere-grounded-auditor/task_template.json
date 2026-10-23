@@ -1,0 +1,18 @@
+{
+  "jsonrpc": "2.0",
+  "id": "task-cohere-audit-002",
+  "method": "a2a.task.submit",
+  "params": {
+    "capability_id": "audit_evidence_grounding",
+    "initiator_role": "human_user",
+    "effect_guard": {
+      "action": "audit",
+      "target": "SECURITY.md",
+      "params": {
+        "standard": "NIST_SP_800_53_REV_5",
+        "control": "AC-3",
+        "requirement": "Confused deputy defense role separation"
+      }
+    }
+  }
+}

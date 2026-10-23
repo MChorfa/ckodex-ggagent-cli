@@ -713,6 +713,7 @@ fn test_lab13_cross_harness_adapter_compatibility() {
         HarnessFamily::AntigravityGemini,
         HarnessFamily::ClaudeCode,
         HarnessFamily::CodexOpenAi,
+        HarnessFamily::CohereCommand,
         HarnessFamily::OpenCode,
         HarnessFamily::SamMesh,
         HarnessFamily::GoogleAgentsCli,

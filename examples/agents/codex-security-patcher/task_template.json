@@ -1,0 +1,17 @@
+{
+  "jsonrpc": "2.0",
+  "id": "task-codex-patch-003",
+  "method": "a2a.task.submit",
+  "params": {
+    "capability_id": "synthesize_hardened_patch",
+    "initiator_role": "human_user",
+    "effect_guard": {
+      "action": "patch",
+      "target": "crates/ggagent-validation/src/network_guard.rs",
+      "params": {
+        "vulnerability": "IMDS_METADATA_EXFILTRATION",
+        "patch_type": "default_deny_egress"
+      }
+    }
+  }
+}

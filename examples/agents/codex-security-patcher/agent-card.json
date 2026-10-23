@@ -1,0 +1,31 @@
+{
+  "$schema": "https://a2aprotocol.org/schemas/v1/agent-card.json",
+  "name": "codex-security-patcher",
+  "version": "1.0.0",
+  "description": "Deterministic security patch synthesizer with use-time material binding powered by OpenAI Codex.",
+  "endpoints": {
+    "rpc": "http://127.0.0.1:8080/api/v1/a2a",
+    "events": "http://127.0.0.1:8080/api/v1/a2a/events"
+  },
+  "capabilities": [
+    {
+      "id": "synthesize_hardened_patch",
+      "description": "Synthesizes code diffs bound to exact material argument digests under Landlock sandbox bounds (SAS-037).",
+      "parameters": {
+        "vulnerability_id": { "type": "string", "description": "Vulnerability or flaw identifier" },
+        "target_crate": { "type": "string", "description": "Workspace crate to patch" }
+      }
+    },
+    {
+      "id": "generate_conformance_vectors",
+      "description": "Generates adversarial and boundary unit tests targeting anti-invariants (SAS-042).",
+      "parameters": {
+        "invariant": { "type": "string", "description": "Invariant to stress-test" }
+      }
+    }
+  ],
+  "authentication": {
+    "type": "mtls_or_bearer",
+    "scopes": ["a2a:patch:synthesize", "a2a:effect:bind"]
+  }
+}

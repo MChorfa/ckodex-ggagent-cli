@@ -8,6 +8,7 @@ pub enum HarnessFamily {
     AntigravityGemini,
     ClaudeCode,
     CodexOpenAi,
+    CohereCommand,
     OpenCode,
     SamMesh,
     GoogleAgentsCli,
@@ -59,6 +60,19 @@ impl CrossHarnessBridge {
                 capabilities: vec!["headless_exec".into(), "review".into()],
             },
             HarnessProfile {
+                family: HarnessFamily::CohereCommand,
+                config_dir: "~/.cohere".into(),
+                skills_dir: ".cohere/connectors".into(),
+                dispatch_command: "cohere chat --message \"<intent>\" --model command-r-plus"
+                    .into(),
+                discovery_protocol: "Cohere Connectors + Tool Use".into(),
+                capabilities: vec![
+                    "grounded_citations".into(),
+                    "rerank_v3".into(),
+                    "multi_step_tool_use".into(),
+                ],
+            },
+            HarnessProfile {
                 family: HarnessFamily::OpenCode,
                 config_dir: "~/.opencode".into(),
                 skills_dir: ".opencode/skills".into(),
@@ -99,6 +113,10 @@ impl CrossHarnessBridge {
         match family {
             HarnessFamily::AntigravityGemini => Ok(format!("gemini -p \"{}\"", clean_problem)),
             HarnessFamily::CodexOpenAi => Ok(format!("codex exec \"{}\"", clean_problem)),
+            HarnessFamily::CohereCommand => Ok(format!(
+                "cohere chat --message \"{}\" --model command-r-plus",
+                clean_problem
+            )),
             HarnessFamily::ClaudeCode => Ok(format!(
                 "claude -p \"{}\" --model {}",
                 clean_problem, role_tier

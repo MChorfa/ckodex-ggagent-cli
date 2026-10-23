@@ -1,0 +1,17 @@
+{
+  "jsonrpc": "2.0",
+  "id": "task-claude-refactor-004",
+  "method": "a2a.task.submit",
+  "params": {
+    "capability_id": "refactor_domain_kernel",
+    "initiator_role": "human_user",
+    "effect_guard": {
+      "action": "refactor",
+      "target": "crates/ggagent-kernel/src/lease.rs",
+      "params": {
+        "rule": "CLEAN_CONDAMIAN_CONVENTION",
+        "requirement": "Zero I/O, zero async runtime dependencies"
+      }
+    }
+  }
+}

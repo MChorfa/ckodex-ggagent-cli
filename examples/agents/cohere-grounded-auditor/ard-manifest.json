@@ -1,0 +1,35 @@
+{
+  "version": "1.0",
+  "publisher": "CKODEX Architecture Team",
+  "domain": "agents.local",
+  "resources": [
+    {
+      "id": "cohere-grounded-auditor",
+      "name": "Cohere Grounded Auditor",
+      "type": "agent",
+      "version": "1.0.0",
+      "description": "Cohere Command R+ verification agent generating strictly grounded citations and Rerank-v3.5 policy checks.",
+      "endpoints": [
+        {
+          "name": "rpc",
+          "protocol": "a2a_rpc",
+          "uri": "http://127.0.0.1:8080/api/v1/a2a"
+        }
+      ],
+      "capabilities": [
+        {
+          "id": "audit_evidence_grounding",
+          "name": "Evidence Grounding Auditor",
+          "description": "SAS-054 citation verification producing exact character offsets and SHA-256 span digests.",
+          "tags": ["cohere", "grounding", "citations", "rag"]
+        },
+        {
+          "id": "rerank_policy_invariants",
+          "name": "Policy Invariant Reranker",
+          "description": "Neural cross-encoder reranking over compliance corpus to retrieve authoritative controls.",
+          "tags": ["rerank", "cohere", "compliance"]
+        }
+      ]
+    }
+  ]
+}

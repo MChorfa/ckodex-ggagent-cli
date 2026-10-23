@@ -1,0 +1,35 @@
+{
+  "version": "1.0",
+  "publisher": "CKODEX Architecture Team",
+  "domain": "agents.local",
+  "resources": [
+    {
+      "id": "codex-security-patcher",
+      "name": "Codex Security Patcher",
+      "type": "agent",
+      "version": "1.0.0",
+      "description": "OpenAI Codex security remediation agent producing use-time bound patches and sealed candidate snapshots.",
+      "endpoints": [
+        {
+          "name": "rpc",
+          "protocol": "a2a_rpc",
+          "uri": "http://127.0.0.1:8080/api/v1/a2a"
+        }
+      ],
+      "capabilities": [
+        {
+          "id": "synthesize_hardened_patch",
+          "name": "Hardened Patch Synthesizer",
+          "description": "Synthesizes minimal diffs bound by AtomicEffectGuard to eliminate Loopjacking.",
+          "tags": ["codex", "patch", "atomiceffectguard", "security"]
+        },
+        {
+          "id": "generate_conformance_vectors",
+          "name": "Conformance Vector Generator",
+          "description": "Generates adversarial boundary test suites verifying error-handling and sandbox escapes.",
+          "tags": ["testing", "conformance", "red-team"]
+        }
+      ]
+    }
+  ]
+}
