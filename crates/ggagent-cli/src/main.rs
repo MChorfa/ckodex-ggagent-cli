@@ -31,8 +31,8 @@ use ggagent_transport::cross_harness::{CrossHarnessBridge, HarnessFamily};
 use ggagent_transport::{ArdService, TransportServer};
 use ggagent_validation::{
     AgentCardValidator, ArdValidator, AtomicEffectBroker, EffectRequest, HandoffValidator,
-    MeshOrchestrator, NetworkEgressGuard, ReplayEngine, SbomToolBridge, SbomToolsEngine,
-    SecretGuard, SecurityGuards, WorkspaceStagingGuard,
+    MeshOrchestrator, NetworkEgressGuard, ReplayEngine, SbomAnalyzer, SbomToolBridge, SecretGuard,
+    SecurityGuards, WorkspaceStagingGuard,
 };
 use std::collections::BTreeMap;
 use std::fs;
@@ -206,7 +206,7 @@ enum SbomCommands {
         mode: String,
     },
 
-    /// Perform semantic diff between two SBOMs using sbom-tool/sbom-tools
+    /// Perform semantic diff between two SBOMs using SbomAnalyzer
     Diff {
         /// Baseline (old) SBOM file path (CycloneDX or SPDX)
         old: String,
@@ -214,7 +214,7 @@ enum SbomCommands {
         new: String,
     },
 
-    /// Score SBOM completeness, licensing, and security with sbom-tool/sbom-tools
+    /// Score SBOM completeness, licensing, and security with SbomAnalyzer
     Quality {
         /// Path to SBOM file (CycloneDX or SPDX)
         path: String,
@@ -223,7 +223,7 @@ enum SbomCommands {
         profile: Option<String>,
     },
 
-    /// Audit SBOM against regulatory compliance frameworks with sbom-tool/sbom-tools
+    /// Audit SBOM against regulatory compliance frameworks with SbomAnalyzer
     Compliance {
         /// Path to SBOM file (CycloneDX or SPDX)
         path: String,
@@ -232,13 +232,13 @@ enum SbomCommands {
         framework: Option<String>,
     },
 
-    /// Parse and normalize any CycloneDX or SPDX SBOM via sbom-tool/sbom-tools
+    /// Parse and normalize any CycloneDX or SPDX SBOM via SbomAnalyzer
     Parse {
         /// Path to SBOM file
         path: String,
     },
 
-    /// Inspect host status for sbom-tools native engine and Microsoft sbom-tool bridge
+    /// Inspect host status for SbomAnalyzer and Microsoft sbom-tool bridge
     Status,
 }
 
@@ -1205,9 +1205,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 sbom_status
             );
 
-            // 20. sbom-tool/sbom-tools Native Rust Multi-Format Engine (crates.io/crates/sbom-tools v0.3.0)
+            // 20. SBOM Semantic Analyzer & Regulatory Compliance Engine
             println!(
-                "  [OK] sbom-tool/sbom-tools (crates.io v0.3.0): Semantic diff, quality scoring & CRA/NTIA compliance active"
+                "  [OK] SBOM Semantic Analyzer: Semantic diff, quality scoring & CRA/NTIA compliance active"
             );
 
             println!("\n✅ Overall System Health: NORMAL / COHERENT (All 20 systems verified)");
@@ -1778,10 +1778,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             SbomCommands::Diff { old, new } => {
                 let old_path = Path::new(&old);
                 let new_path = Path::new(&new);
-                match SbomToolsEngine::diff(old_path, new_path) {
+                match SbomAnalyzer::diff(old_path, new_path) {
                     Ok((diff, receipt)) => {
                         println!("══════════════════════════════════════════════════════════════════════════");
-                        println!("🔍 SBOM SEMANTIC DIFF (sbom-tool/sbom-tools v0.3.0)");
+                        println!("🔍 SBOM SEMANTIC DIFF (SbomAnalyzer)");
                         println!("══════════════════════════════════════════════════════════════════════════");
                         println!("  Baseline SBOM:         {}", old_path.display());
                         println!("  Target SBOM:           {}", new_path.display());
@@ -1827,10 +1827,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
             SbomCommands::Quality { path, profile } => {
                 let sbom_path = Path::new(&path);
-                match SbomToolsEngine::score(sbom_path, profile.as_deref()) {
+                match SbomAnalyzer::score(sbom_path, profile.as_deref()) {
                     Ok((report, receipt)) => {
                         println!("══════════════════════════════════════════════════════════════════════════");
-                        println!("📊 SBOM QUALITY EVALUATION (sbom-tool/sbom-tools v0.3.0)");
+                        println!("📊 SBOM QUALITY EVALUATION (SbomAnalyzer)");
                         println!("══════════════════════════════════════════════════════════════════════════");
                         println!("  Target File:           {}", sbom_path.display());
                         println!("  Scoring Profile:       {:?}", report.profile);
@@ -1888,10 +1888,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
             SbomCommands::Compliance { path, framework } => {
                 let sbom_path = Path::new(&path);
-                match SbomToolsEngine::check_compliance(sbom_path, framework.as_deref()) {
+                match SbomAnalyzer::check_compliance(sbom_path, framework.as_deref()) {
                     Ok((result, receipt)) => {
                         println!("══════════════════════════════════════════════════════════════════════════");
-                        println!("⚖️  SBOM REGULATORY COMPLIANCE (sbom-tool/sbom-tools v0.3.0)");
+                        println!("⚖️  SBOM REGULATORY COMPLIANCE (SbomAnalyzer)");
                         println!("══════════════════════════════════════════════════════════════════════════");
                         println!("  Target File:           {}", sbom_path.display());
                         println!("  Regulatory Standard:   {:?}", result.level);
@@ -1930,10 +1930,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
             SbomCommands::Parse { path } => {
                 let sbom_path = Path::new(&path);
-                match SbomToolsEngine::parse(sbom_path) {
+                match SbomAnalyzer::parse(sbom_path) {
                     Ok(normalized) => {
                         println!("══════════════════════════════════════════════════════════════════════════");
-                        println!("📦 SBOM NORMALIZATION SUMMARY (sbom-tool/sbom-tools v0.3.0)");
+                        println!("📦 SBOM NORMALIZATION SUMMARY (SbomAnalyzer)");
                         println!("══════════════════════════════════════════════════════════════════════════");
                         println!("  Target File:           {}", sbom_path.display());
                         println!("  Detected Format:       {:?}", normalized.document.format);
@@ -1965,8 +1965,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
             SbomCommands::Status => {
                 println!("Supply Chain & SBOM Tooling Diagnostics:\n");
-                println!("  [Native Rust Engine: sbom-tool/sbom-tools (crates.io v0.3.0)]");
-                println!("  Engine Status:              ACTIVE (Embedded zero-I/O crate)");
+                println!("  [SBOM Semantic Analyzer Engine]");
+                println!("  Engine Status:              ACTIVE (Zero-I/O Domain Service)");
                 println!("  Multi-Format Support:       CycloneDX 1.4-1.7 (JSON/XML) & SPDX 2.2-3.0 (JSON)");
                 println!("  Semantic Diff Engine:       READY (Component, license & vulnerability diffs)");
                 println!("  Quality Scorer:             READY (Profiles: Standard, CRA, BSI TR-03183, AI Readiness)");

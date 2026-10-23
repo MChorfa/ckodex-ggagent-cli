@@ -1,6 +1,6 @@
-//! # Native Integration of `sbom-tool/sbom-tools` (github.com/sbom-tool/sbom-tools)
+//! # SBOM Semantic Analyzer & Regulatory Compliance Engine
 //!
-//! Provides first-class, embedded integration with the open-source Rust `sbom-tools` engine:
+//! Provides comprehensive supply-chain domain analysis and assurance:
 //! - Multi-format ingestion and normalization across CycloneDX (1.4-1.7) and SPDX (2.2-3.0)
 //! - Semantic component, dependency, license, and vulnerability diffing via `DiffEngine`
 //! - Regulatory compliance audits across NTIA, EU CRA (Phases 1 & 2), FDA, EO 14028, NIST SSDF
@@ -19,13 +19,13 @@ use sbom_tools::quality::{
 use std::path::Path;
 use std::time::Instant;
 
-pub struct SbomToolsEngine;
+pub struct SbomAnalyzer;
 
-impl SbomToolsEngine {
+impl SbomAnalyzer {
     /// Ingests and normalizes any CycloneDX or SPDX SBOM into unified `NormalizedSbom`
     pub fn parse(path: &Path) -> Result<NormalizedSbom, ValidationError> {
         parse_sbom(path).map_err(|e| {
-            ValidationError::SbomToolsAnalysisError(format!(
+            ValidationError::SbomAnalysisError(format!(
                 "Failed to parse SBOM at '{}': {}",
                 path.display(),
                 e
@@ -44,7 +44,7 @@ impl SbomToolsEngine {
 
         let engine = DiffEngine::new();
         let diff_result = engine.diff(&old_sbom, &new_sbom).map_err(|e| {
-            ValidationError::SbomToolsAnalysisError(format!("Semantic diff failed: {}", e))
+            ValidationError::SbomAnalysisError(format!("Semantic diff failed: {}", e))
         })?;
 
         let elapsed = start.elapsed().as_millis() as u64;
@@ -67,7 +67,7 @@ impl SbomToolsEngine {
                 old_path.file_name().unwrap_or_default().to_string_lossy(),
                 new_path.file_name().unwrap_or_default().to_string_lossy()
             ),
-            actor_id: "engine:sbom-tools-native".into(),
+            actor_id: "validator:sbom-analyzer".into(),
             authority_id: "auth:root:supply-chain:diff".into(),
             capability_id: "semantic_sbom_diff".into(),
             action: "diff_sboms".into(),
@@ -118,7 +118,7 @@ impl SbomToolsEngine {
                 "sbom-score-{}",
                 path.file_name().unwrap_or_default().to_string_lossy()
             ),
-            actor_id: "engine:sbom-tools-native".into(),
+            actor_id: "validator:sbom-analyzer".into(),
             authority_id: "auth:root:supply-chain:quality".into(),
             capability_id: "score_sbom_quality".into(),
             action: "quality_score".into(),
@@ -166,7 +166,7 @@ impl SbomToolsEngine {
                 "sbom-compliance-{}",
                 path.file_name().unwrap_or_default().to_string_lossy()
             ),
-            actor_id: "engine:sbom-tools-native".into(),
+            actor_id: "validator:sbom-analyzer".into(),
             authority_id: "auth:root:supply-chain:compliance".into(),
             capability_id: "check_sbom_compliance".into(),
             action: "compliance_check".into(),
@@ -187,7 +187,7 @@ mod tests {
     use tempfile::tempdir;
 
     #[test]
-    fn test_sbom_tools_parse_and_score() {
+    fn test_sbom_analyzer_parse_and_score() {
         let temp = tempdir().expect("tempdir");
         let sbom_path = temp.path().join("sample_cyclonedx.json");
 
@@ -196,25 +196,25 @@ mod tests {
         let serialized = serde_json::to_string_pretty(&cdx).expect("serialize cdx");
         std::fs::write(&sbom_path, &serialized).expect("write sbom");
 
-        // Parse via native sbom-tools
-        let parsed = SbomToolsEngine::parse(&sbom_path).expect("parse sbom succeeds");
+        // Parse via SbomAnalyzer
+        let parsed = SbomAnalyzer::parse(&sbom_path).expect("parse sbom succeeds");
         assert!(!parsed.components.is_empty());
 
-        // Score via native sbom-tools
+        // Score via SbomAnalyzer
         let (report, receipt) =
-            SbomToolsEngine::score(&sbom_path, Some("standard")).expect("score succeeds");
+            SbomAnalyzer::score(&sbom_path, Some("standard")).expect("score succeeds");
         assert!(receipt.verify_signature());
         assert!(report.overall_score > 0.0);
 
         // Check compliance against NTIA Minimum Elements
         let (compliance, comp_rcpt) =
-            SbomToolsEngine::check_compliance(&sbom_path, Some("ntia")).expect("compliance check");
+            SbomAnalyzer::check_compliance(&sbom_path, Some("ntia")).expect("compliance check");
         assert!(comp_rcpt.verify_signature());
         assert_eq!(compliance.level, ComplianceLevel::NtiaMinimum);
     }
 
     #[test]
-    fn test_sbom_tools_diff() {
+    fn test_sbom_analyzer_diff() {
         let temp = tempdir().expect("tempdir");
         let path1 = temp.path().join("sbom_v1.json");
         let path2 = temp.path().join("sbom_v2.json");
@@ -227,7 +227,7 @@ mod tests {
         std::fs::write(&path1, serde_json::to_string(&cdx1).unwrap()).unwrap();
         std::fs::write(&path2, serde_json::to_string(&cdx2).unwrap()).unwrap();
 
-        let (diff_result, receipt) = SbomToolsEngine::diff(&path1, &path2).expect("diff succeeds");
+        let (diff_result, receipt) = SbomAnalyzer::diff(&path1, &path2).expect("diff succeeds");
         assert!(receipt.verify_signature());
         assert!(diff_result.semantic_score < 100.0);
         assert!(!diff_result.components.removed.is_empty());

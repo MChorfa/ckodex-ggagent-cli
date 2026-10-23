@@ -859,7 +859,7 @@ fn test_microsoft_sbom_tool_integration_and_spdx_validation() {
 }
 
 #[test]
-fn test_sbom_tools_native_integration_diff_quality_and_compliance() {
+fn test_sbom_analyzer_diff_quality_and_compliance() {
     let temp = tempfile::tempdir().expect("tempdir");
     let cdx_path = temp.path().join("cyclonedx_1_7.json");
     let cdx_v2_path = temp.path().join("cyclonedx_1_7_v2.json");
@@ -879,12 +879,12 @@ fn test_sbom_tools_native_integration_diff_quality_and_compliance() {
     std::fs::write(&spdx_path, spdx_json).expect("write spdx");
 
     // 3. Multi-format normalization parsing
-    let parsed_cdx = ggagent_validation::SbomToolsEngine::parse(&cdx_path)
-        .expect("parse CycloneDX 1.7 succeeds");
+    let parsed_cdx =
+        ggagent_validation::SbomAnalyzer::parse(&cdx_path).expect("parse CycloneDX 1.7 succeeds");
     assert!(!parsed_cdx.components.is_empty());
 
     let parsed_spdx =
-        ggagent_validation::SbomToolsEngine::parse(&spdx_path).expect("parse SPDX 2.2 succeeds");
+        ggagent_validation::SbomAnalyzer::parse(&spdx_path).expect("parse SPDX 2.2 succeeds");
     assert!(!parsed_spdx.components.is_empty());
 
     // 4. Create v2 CycloneDX with a component removed and one added
@@ -908,7 +908,7 @@ fn test_sbom_tools_native_integration_diff_quality_and_compliance() {
 
     // 5. Semantic Diff via DiffEngine
     let (diff_result, diff_receipt) =
-        ggagent_validation::SbomToolsEngine::diff(&cdx_path, &cdx_v2_path)
+        ggagent_validation::SbomAnalyzer::diff(&cdx_path, &cdx_v2_path)
             .expect("semantic diff succeeds");
     assert!(diff_receipt.verify_signature());
     assert_eq!(diff_receipt.action, "diff_sboms");
@@ -918,7 +918,7 @@ fn test_sbom_tools_native_integration_diff_quality_and_compliance() {
 
     // 6. Quality Scoring
     let (score_report, score_receipt) =
-        ggagent_validation::SbomToolsEngine::score(&cdx_path, Some("standard"))
+        ggagent_validation::SbomAnalyzer::score(&cdx_path, Some("standard"))
             .expect("quality score succeeds");
     assert!(score_receipt.verify_signature());
     assert_eq!(score_receipt.action, "quality_score");
@@ -926,7 +926,7 @@ fn test_sbom_tools_native_integration_diff_quality_and_compliance() {
 
     // 7. Compliance Audit (NTIA Minimum Elements)
     let (compliance_res, comp_receipt) =
-        ggagent_validation::SbomToolsEngine::check_compliance(&cdx_path, Some("ntia"))
+        ggagent_validation::SbomAnalyzer::check_compliance(&cdx_path, Some("ntia"))
             .expect("compliance check succeeds");
     assert!(comp_receipt.verify_signature());
     assert_eq!(comp_receipt.action, "compliance_check");

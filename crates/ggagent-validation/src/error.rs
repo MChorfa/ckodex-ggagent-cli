@@ -63,6 +63,6 @@ pub enum ValidationError {
     #[error("Microsoft sbom-tool execution error: {0}")]
     SbomToolExecutionError(String),
 
-    #[error("sbom-tools analysis failed: {0}")]
-    SbomToolsAnalysisError(String),
+    #[error("SBOM semantic analysis failed: {0}")]
+    SbomAnalysisError(String),
 }
