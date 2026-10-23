@@ -504,13 +504,14 @@ impl SpdxDocument {
             version: 1,
             metadata: crate::aibom::BomMetadata {
                 timestamp: self.creation_info.created,
-                authors: self.creation_info.creators.clone(),
+                authors: self
+                    .creation_info
+                    .creators
+                    .iter()
+                    .map(|c| crate::aibom::BomAuthor::from(c.as_str()))
+                    .collect(),
                 component: Box::new(root_component),
-                properties: {
-                    let mut p = std::collections::BTreeMap::new();
-                    p.insert("converted_from".into(), "SPDX-2.2".into());
-                    p
-                },
+                properties: vec![crate::aibom::BomProperty::new("converted_from", "SPDX-2.2")],
             },
             components,
             dependencies: vec![],

@@ -30,7 +30,9 @@ pub mod vector_state;
 
 // Re-exports
 pub use a2a::{A2AEvent, A2AMessage, A2APart, A2ARole, A2ATask, A2ATaskState, AgentCard};
-pub use aibom::{AiBomDocument, BomComponent, BomMetadata, ComponentType, ModelCardInfo};
+pub use aibom::{
+    AiBomDocument, BomAuthor, BomComponent, BomMetadata, BomProperty, ComponentType, ModelCardInfo,
+};
 pub use ard::{ArdCapability, ArdDocument, ArdEndpoint, ArdProtocol, ArdResource, ArdResourceType};
 pub use budget::ExecutionBudget;
 pub use checkpoint::TaskCheckpoint;

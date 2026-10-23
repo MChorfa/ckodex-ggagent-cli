@@ -764,13 +764,7 @@ fn test_cyclonedx_1_7_aibom_generation_and_integrity() {
     assert_eq!(bom.bom_format, "CycloneDX");
     assert_eq!(bom.spec_version, "1.7");
     assert!(bom.serial_number.starts_with("urn:uuid:"));
-    assert_eq!(
-        bom.metadata
-            .properties
-            .get("ecma_standard")
-            .map(|s| s.as_str()),
-        Some("ECMA-424")
-    );
+    assert_eq!(bom.metadata.get_property("ecma_standard"), Some("ECMA-424"));
 
     // Check components
     let model_names: Vec<&str> = bom
@@ -862,4 +856,82 @@ fn test_microsoft_sbom_tool_integration_and_spdx_validation() {
     );
     assert_eq!(roundtrip_spdx.spdx_version, "SPDX-2.2");
     assert!(ggagent_validation::SpdxValidator::validate(&roundtrip_spdx).is_ok());
+}
+
+#[test]
+fn test_sbom_tools_native_integration_diff_quality_and_compliance() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    let cdx_path = temp.path().join("cyclonedx_1_7.json");
+    let cdx_v2_path = temp.path().join("cyclonedx_1_7_v2.json");
+    let spdx_path = temp.path().join("manifest.spdx.json");
+
+    // 1. Generate & persist CycloneDX 1.7 AI-BOM
+    let cdx = ggagent_kernel::aibom::AiBomDocument::standard_ggagent_bom();
+    let cdx_json = serde_json::to_string_pretty(&cdx).expect("serialize cdx");
+    std::fs::write(&cdx_path, cdx_json).expect("write cdx");
+
+    // 2. Generate & persist SPDX 2.2 manifest
+    let spdx = ggagent_kernel::spdx::SpdxDocument::from_cyclonedx(
+        &cdx,
+        "https://github.com/MChorfa/ckodex-ggagent-cli",
+    );
+    let spdx_json = serde_json::to_string_pretty(&spdx).expect("serialize spdx");
+    std::fs::write(&spdx_path, spdx_json).expect("write spdx");
+
+    // 3. Multi-format normalization parsing
+    let parsed_cdx = ggagent_validation::SbomToolsEngine::parse(&cdx_path)
+        .expect("parse CycloneDX 1.7 succeeds");
+    assert!(!parsed_cdx.components.is_empty());
+
+    let parsed_spdx =
+        ggagent_validation::SbomToolsEngine::parse(&spdx_path).expect("parse SPDX 2.2 succeeds");
+    assert!(!parsed_spdx.components.is_empty());
+
+    // 4. Create v2 CycloneDX with a component removed and one added
+    let mut cdx_v2 = cdx.clone();
+    cdx_v2.components.pop();
+    cdx_v2.components.push(ggagent_kernel::aibom::BomComponent {
+        r#type: ggagent_kernel::aibom::ComponentType::Library,
+        name: "seccomp-bpf-filter-v2".into(),
+        version: "2.0.0".into(),
+        description: "Upgraded seccomp syscall filter".into(),
+        purl: "pkg:generic/sandbox/seccomp-bpf@2.0.0".into(),
+        sha256_digest: "sha256:upgraded_bpf_filter_verified".into(),
+        model_card: None,
+        properties: vec![],
+    });
+    std::fs::write(
+        &cdx_v2_path,
+        serde_json::to_string_pretty(&cdx_v2).expect("serialize cdx v2"),
+    )
+    .expect("write cdx v2");
+
+    // 5. Semantic Diff via DiffEngine
+    let (diff_result, diff_receipt) =
+        ggagent_validation::SbomToolsEngine::diff(&cdx_path, &cdx_v2_path)
+            .expect("semantic diff succeeds");
+    assert!(diff_receipt.verify_signature());
+    assert_eq!(diff_receipt.action, "diff_sboms");
+    assert!(diff_result.semantic_score < 100.0);
+    assert!(!diff_result.components.added.is_empty());
+    assert!(!diff_result.components.removed.is_empty());
+
+    // 6. Quality Scoring
+    let (score_report, score_receipt) =
+        ggagent_validation::SbomToolsEngine::score(&cdx_path, Some("standard"))
+            .expect("quality score succeeds");
+    assert!(score_receipt.verify_signature());
+    assert_eq!(score_receipt.action, "quality_score");
+    assert!(score_report.overall_score > 0.0);
+
+    // 7. Compliance Audit (NTIA Minimum Elements)
+    let (compliance_res, comp_receipt) =
+        ggagent_validation::SbomToolsEngine::check_compliance(&cdx_path, Some("ntia"))
+            .expect("compliance check succeeds");
+    assert!(comp_receipt.verify_signature());
+    assert_eq!(comp_receipt.action, "compliance_check");
+    assert_eq!(
+        compliance_res.level,
+        ggagent_validation::ComplianceLevel::NtiaMinimum
+    );
 }
