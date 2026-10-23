@@ -32,7 +32,7 @@ impl CapabilityLease {
         valid_until: DateTime<Utc>,
     ) -> Self {
         let id = lease_id.into();
-        let fence = format!("fence-0-{}", &id);
+        let fence = format!("fence-0-{}", id);
         Self {
             lease_id: id,
             parent_lease_id: None,
@@ -95,7 +95,7 @@ impl CapabilityLease {
         };
 
         let child_id = child_lease_id.into();
-        let child_fence = format!("fence-{}-{}", self.generation, &child_id);
+        let child_fence = format!("fence-{}-{}", self.generation, child_id);
 
         Ok(CapabilityLease {
             lease_id: child_id,

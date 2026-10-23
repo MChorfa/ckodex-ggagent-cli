@@ -84,7 +84,7 @@ impl A2ATask {
     ) -> Self {
         let now = Utc::now();
         let tid = task_id.into();
-        let fence = format!("fence-0-{}", &tid);
+        let fence = format!("fence-0-{}", tid);
         Self {
             task_id: tid,
             session_id: session_id.into(),

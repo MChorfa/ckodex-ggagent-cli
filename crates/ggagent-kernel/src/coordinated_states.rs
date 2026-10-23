@@ -105,7 +105,7 @@ impl CoordinatedTaskState {
     pub fn new(task_id: impl Into<String>) -> Self {
         let id = task_id.into();
         let now = Utc::now();
-        let fence = format!("fence-0-{}", &id);
+        let fence = format!("fence-0-{}", id);
         Self {
             task_id: id,
             generation: 0,
