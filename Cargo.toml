@@ -14,8 +14,8 @@ edition = "2021"
 rust-version = "1.80"
 authors = ["CKODEX Architecture & Operations Team"]
 license = "Apache-2.0"
-repository = "https://github.com/ckodex/ckodex-ggagent-cli"
-homepage = "https://github.com/ckodex/ckodex-ggagent-cli"
+repository = "https://github.com/MChorfa/ckodex-ggagent-cli"
+homepage = "https://mchorfa.github.io/ckodex-ggagent-cli/"
 keywords = ["agents", "a2a", "ard", "mcp", "subagents"]
 categories = ["command-line-utilities", "development-tools"]
 

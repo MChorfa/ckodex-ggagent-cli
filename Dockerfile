@@ -25,7 +25,7 @@ LABEL org.opencontainers.image.title="ckodex-ggagent-cli" \
       org.opencontainers.image.description="CKODEX Cleanroom Google Agents & A2A CLI Runtime with 77 Subagent Strategies" \
       org.opencontainers.image.vendor="CKODEX Architecture Team" \
       org.opencontainers.image.licenses="Apache-2.0" \
-      org.opencontainers.image.source="https://github.com/ckodex/ckodex-ggagent-cli"
+      org.opencontainers.image.source="https://github.com/MChorfa/ckodex-ggagent-cli"
 
 # Copy stripped binary from builder
 COPY --from=builder --chown=nonroot:nonroot /workspace/target/release/ggagent /usr/local/bin/ggagent

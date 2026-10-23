@@ -1,0 +1,35 @@
+{
+  "$schema": "https://a2aprotocol.org/schemas/v1/agent-card.json",
+  "name": "ckodex-ggagent",
+  "version": "2.0.0",
+  "description": "Canonical Google ADK & A2A Interoperability Agent with 77 Subagent Strategies and Sandboxing Boundary Verification",
+  "endpoints": {
+    "rpc": "https://mchorfa.github.io/ckodex-ggagent-cli/api/v1/a2a",
+    "events": "https://mchorfa.github.io/ckodex-ggagent-cli/api/v1/a2a/events"
+  },
+  "capabilities": [
+    {
+      "id": "conformance_evaluation",
+      "description": "Evaluates state transition contracts delta(Pe, S0, X, C)",
+      "parameters": {}
+    },
+    {
+      "id": "subagent_orchestration",
+      "description": "Executes multi-tier subagents across the 77 canonical strategies",
+      "parameters": {}
+    },
+    {
+      "id": "atomic_effect_guard",
+      "description": "Cryptographic material effect binding defeating Loopjacking",
+      "parameters": {}
+    }
+  ],
+  "authentication": {
+    "type": "mtls_or_bearer",
+    "scopes": [
+      "a2a:task:read",
+      "a2a:task:write",
+      "a2a:task:evaluate"
+    ]
+  }
+}

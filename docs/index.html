@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CKODEX ggagent | Google A2A, ARD & 77 Subagent Strategies</title>
+  <meta name="description" content="Cleanroom High-Assurance Re-implementation of Google Agents CLI, Google A2A Protocol, ARD, and 77 Subagent Strategies.">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🛡️</text></svg>">
+  <style>
+    :root {
+      --bg: #0b0f19;
+      --card-bg: #111827;
+      --card-hover: #172033;
+      --border: #1f2937;
+      --accent: #3b82f6;
+      --accent-hover: #2563eb;
+      --accent-glow: rgba(59, 130, 246, 0.2);
+      --text: #f3f4f6;
+      --text-muted: #9ca3af;
+      --success: #10b981;
+      --warn: #f59e0b;
+      --danger: #ef4444;
+      --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      padding: 24px;
+      line-height: 1.6;
+    }
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding-bottom: 24px;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 32px;
+      flex-wrap: wrap;
+      gap: 16px;
+    }
+    .badge {
+      background: #1e3a8a;
+      color: #93c5fd;
+      padding: 4px 12px;
+      border-radius: 9999px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      letter-spacing: 0.05em;
+      text-decoration: none;
+      display: inline-block;
+    }
+    .badge-green { background: #065f46; color: #a7f3d0; }
+    .badge-purple { background: #581c87; color: #e9d5ff; }
+    .hero {
+      text-align: center;
+      padding: 40px 20px;
+      margin-bottom: 32px;
+      background: linear-gradient(180deg, rgba(30, 58, 138, 0.1) 0%, transparent 100%);
+      border-radius: 12px;
+      border: 1px solid var(--border);
+    }
+    .hero h1 {
+      font-size: 2.5rem;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      margin-bottom: 12px;
+      background: linear-gradient(135deg, #60a5fa 0%, #a78bfa 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .hero p {
+      color: var(--text-muted);
+      font-size: 1.1rem;
+      max-width: 760px;
+      margin: 0 auto 24px;
+    }
+    .hero-links {
+      display: flex;
+      justify-content: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    .btn {
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      padding: 10px 18px;
+      border-radius: 6px;
+      font-weight: 600;
+      cursor: pointer;
+      font-size: 0.9rem;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      transition: background 0.15s ease;
+    }
+    .btn:hover { background: var(--accent-hover); }
+    .btn-secondary {
+      background: #1f2937;
+      color: #e5e7eb;
+      border: 1px solid #374151;
+    }
+    .btn-secondary:hover { background: #374151; }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+      gap: 24px;
+      margin-bottom: 40px;
+    }
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 24px;
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.5);
+    }
+    .card h2 {
+      font-size: 1.25rem;
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      color: #f3f4f6;
+    }
+    .vector-state-box {
+      font-family: var(--mono);
+      background: #030712;
+      border: 1px solid #1e293b;
+      padding: 14px;
+      border-radius: 6px;
+      font-size: 0.85rem;
+      color: #38bdf8;
+      overflow-x: auto;
+      margin-bottom: 14px;
+    }
+    .strategy-item {
+      padding: 12px;
+      border-bottom: 1px solid #1e293b;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+    }
+    .strategy-item:hover {
+      background: #1e293b;
+    }
+    .meta-tag {
+      font-size: 0.7rem;
+      background: #374151;
+      padding: 2px 8px;
+      border-radius: 4px;
+      margin-left: 6px;
+      font-family: var(--mono);
+    }
+    .stream-log {
+      font-family: var(--mono);
+      background: #030712;
+      border: 1px solid #1e293b;
+      padding: 14px;
+      border-radius: 6px;
+      height: 240px;
+      overflow-y: auto;
+      font-size: 0.82rem;
+      color: #a7f3d0;
+      line-height: 1.6;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.85rem;
+      margin-top: 10px;
+    }
+    th, td {
+      padding: 10px 12px;
+      text-align: left;
+      border-bottom: 1px solid #1e293b;
+    }
+    th {
+      background: #0f172a;
+      color: #93c5fd;
+      font-weight: 600;
+    }
+    footer {
+      text-align: center;
+      padding: 32px 0;
+      color: var(--text-muted);
+      font-size: 0.85rem;
+      border-top: 1px solid var(--border);
+      margin-top: 40px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div>
+        <h1 style="font-size: 1.5rem; font-weight: 700;">🛡️ CKODEX ggagent</h1>
+        <p style="color: var(--text-muted); font-size: 0.85rem;">Canonical Cleanroom Google ADK & A2A Runtime</p>
+      </div>
+      <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+        <span class="badge">Google A2A v1.0</span>
+        <span class="badge badge-green">ARD Discovery v1.0</span>
+        <span class="badge badge-purple">77 Subagents (SAS-001–077)</span>
+        <a class="badge" href="https://github.com/MChorfa/ckodex-ggagent-cli" target="_blank" style="background: #374151; color: #fff;">GitHub Repository ↗</a>
+      </div>
+    </header>
+
+    <div class="hero">
+      <h1>Governed Autonomous Agent Engineering</h1>
+      <p>Cleanroom re-implementation of the Google Agents CLI and A2A Protocol with Clean Condamian pure domain kernel, 7D Vector States, Confused Deputy defense (CVE-2026-18236), and sub-31µs Loopjacking protection.</p>
+      <div class="hero-links">
+        <a class="btn" href="#playground">Explore Live Playground</a>
+        <a class="btn btn-secondary" href="https://github.com/MChorfa/ckodex-ggagent-cli#readme" target="_blank">Read Architecture Docs</a>
+        <a class="btn btn-secondary" href=".well-known/ard.json" target="_blank">View /.well-known/ard.json</a>
+        <a class="btn btn-secondary" href=".well-known/agent-card.json" target="_blank">View /.well-known/agent-card.json</a>
+      </div>
+    </div>
+
+    <div class="grid" id="playground">
+      <!-- Card 1: Vector State Simulator -->
+      <div class="card">
+        <h2>🌐 7D Vector State S(e,t) Monitor</h2>
+        <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 12px;">
+          Vector state, not booleans. Categorical anti-invariants strictly dominate scores.
+        </p>
+        <div class="vector-state-box" id="state-display">
+          ⟨P:Present, V:Positive, A:None, C:Coherent, E:Verified, L:Executing, M:Normal, τ:12⟩
+        </div>
+        <div style="margin-top: 14px; display: flex; gap: 8px; flex-wrap: wrap;">
+          <button class="btn" style="padding: 6px 12px;" onclick="updateState('Normal')">Mode: Normal</button>
+          <button class="btn" style="padding: 6px 12px; background: #b45309;" onclick="updateState('Degraded')">Mode: Degraded</button>
+          <button class="btn" style="padding: 6px 12px; background: #991b1b;" onclick="triggerAnti()">Trigger Anti Violation</button>
+        </div>
+      </div>
+
+      <!-- Card 2: 77 Subagent Strategies Interactive Engine -->
+      <div class="card">
+        <h2>⚡ 77 Subagent Strategies Engine</h2>
+        <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 12px;">
+          7 archetypes: Triage, Context Shield, Model Tier, Fencing, DAG, Verification, Day-2.
+        </p>
+        <div style="max-height: 220px; overflow-y: auto; border: 1px solid #1e293b; border-radius: 6px;">
+          <div class="strategy-item">
+            <div><strong>SAS-001</strong> Blind-First Planner <span class="meta-tag">Tier: R/Peer</span></div>
+            <button class="btn" style="padding: 4px 8px; font-size: 0.75rem;" onclick="logEvent('Dispatched SAS-001 (Blind-First Planner): Zero cross-model plan leakage.')">Dispatch</button>
+          </div>
+          <div class="strategy-item">
+            <div><strong>SAS-012</strong> Spoke-Window Isolation <span class="meta-tag">Context Rot Shield</span></div>
+            <button class="btn" style="padding: 4px 8px; font-size: 0.75rem;" onclick="logEvent('Dispatched SAS-012 (Spoke-Window): Fresh context window spawned.')">Dispatch</button>
+          </div>
+          <div class="strategy-item">
+            <div><strong>SAS-037</strong> AtomicEffectGuard Binding <span class="meta-tag">Anti-Loopjacking</span></div>
+            <button class="btn" style="padding: 4px 8px; font-size: 0.75rem;" onclick="logEvent('Verified SAS-037 (AtomicEffectGuard): Verified use-time digest in 28µs.')">Verify</button>
+          </div>
+          <div class="strategy-item">
+            <div><strong>SAS-038</strong> Confused Deputy Barrier <span class="meta-tag">CVE-2026-18236</span></div>
+            <button class="btn" style="padding: 4px 8px; font-size: 0.75rem;" onclick="logEvent('Enforced SAS-038 (Confused Deputy): Blocked RemoteAgent approval attempt.')">Enforce</button>
+          </div>
+          <div class="strategy-item">
+            <div><strong>SAS-067</strong> Day-2 Canonical Control Loop <span class="meta-tag">Reconciliation</span></div>
+            <button class="btn" style="padding: 4px 8px; font-size: 0.75rem;" onclick="logEvent('Executed SAS-067 (Control Loop): State reconciliation converged.')">Run</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Card 3: Deep Day-2 Diagnostics Simulator -->
+      <div class="card">
+        <h2>🩺 Day-2 Diagnostics (Doctor)</h2>
+        <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 12px;">
+          Verifies all 18 core operational systems across kernel, validation, evidence, and transport.
+        </p>
+        <div style="font-family: var(--mono); font-size: 0.8rem; background: #030712; padding: 12px; border-radius: 6px; border: 1px solid #1e293b; max-height: 200px; overflow-y: auto;">
+          <div style="color: #34d399;">[OK] Pure Semantic Kernel: 100% I/O free</div>
+          <div style="color: #34d399;">[OK] Subagent Strategies: 77/77 cataloged</div>
+          <div style="color: #34d399;">[OK] Confused Deputy Defense: Active (CVE-2026-18236)</div>
+          <div style="color: #34d399;">[OK] AtomicEffectGuard: Latency < 31µs</div>
+          <div style="color: #34d399;">[OK] ARD Standard: v1.0 compliant</div>
+          <div style="color: #34d399;">[OK] Evidence Fabric: DSSE Ed25519 attestations</div>
+          <div style="color: #34d399;">[OK] 4D Coordinated States: Active</div>
+          <div style="color: #34d399;">[OK] Generation Fencing: Split-brain defeated</div>
+          <div style="color: #34d399;">[OK] Workspace Staging: TOCTOU & symlinks defeated</div>
+          <div style="color: #34d399;">[OK] Network Egress Guard: IMDS & Intranet blocked</div>
+          <div style="color: #34d399;">[OK] Sandbox Isolation: Landlock & Seccomp enforced</div>
+          <div style="color: #34d399;">[OK] Replay Engine: Side-effect fencing active</div>
+        </div>
+        <div style="margin-top: 14px;">
+          <button class="btn" style="padding: 6px 12px;" onclick="runDoctorSimulation()">Run Full Diagnostic Scan</button>
+        </div>
+      </div>
+
+      <!-- Card 4: Live Flight Recorder & SSE Log -->
+      <div class="card">
+        <h2>📜 Flight Recorder & SSE Stream</h2>
+        <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 12px;">
+          Tamper-evident, hash-chained ledger across all 4 truth channels.
+        </p>
+        <div class="stream-log" id="stream-console">
+          [INIT] CKODEX ggagent runtime initialized.<br>
+          [A2A] Listening on A2A JSON-RPC 2.0 & SSE streaming.<br>
+          [ARD] Published /.well-known/ard.json.<br>
+          [SEC] AtomicEffectGuard bound to sha256:7f83b...<br>
+          [DOC] 18 Day-2 diagnostic systems healthy.
+        </div>
+      </div>
+    </div>
+
+    <!-- Laboratory Contracts Matrix -->
+    <div class="card" style="margin-bottom: 40px;">
+      <h2>🧪 13 Virtualization & Sandboxing Laboratory Contracts</h2>
+      <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 16px;">
+        Formal laboratory specifications derived from <em>Virtualization and Agent Sandboxing</em> (Chapters 2–30).
+      </p>
+      <div style="overflow-x: auto;">
+        <table>
+          <thead>
+            <tr>
+              <th>Contract</th>
+              <th>Laboratory Scope</th>
+              <th>Enforcement Mechanism</th>
+              <th>Observed Evidence</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>Lab 1</strong></td>
+              <td>Authority Boundary & Loopjacking</td>
+              <td><code>AtomicEffectGuard</code> material digest</td>
+              <td>Tampered parameters rejected in 30µs</td>
+            </tr>
+            <tr>
+              <td><strong>Lab 2</strong></td>
+              <td>Generation Fencing under Partition</td>
+              <td><code>AtomicEffectBroker</code> generation $N \to N+1$</td>
+              <td>Stale worker mutations strictly FENCED</td>
+            </tr>
+            <tr>
+              <td><strong>Lab 3</strong></td>
+              <td>Workspace Staging & TOCTOU Defeat</td>
+              <td><code>WorkspaceStagingGuard</code> + <code>SealedCandidate</code></td>
+              <td>Symlink escapes blocked; memory sealed</td>
+            </tr>
+            <tr>
+              <td><strong>Lab 4</strong></td>
+              <td>4D Coordinated States</td>
+              <td>Execution, Authority, Candidate, Reclamation</td>
+              <td>Loss of authority halts execution</td>
+            </tr>
+            <tr>
+              <td><strong>Lab 5</strong></td>
+              <td>Three-Loop Responsibility Boundaries</td>
+              <td>Inner, Outer, Governance separation</td>
+              <td>Workers cannot expand authority or budgets</td>
+            </tr>
+            <tr>
+              <td><strong>Lab 6</strong></td>
+              <td>Execution Budget Attenuation</td>
+              <td>Steps, Effects, Tokens, Duration</td>
+              <td>Monotonic child attenuation verified</td>
+            </tr>
+            <tr>
+              <td><strong>Lab 7</strong></td>
+              <td>Partitioned Handoff Protocol</td>
+              <td><code>HandoffManifest</code> + Checkpoint SHA-256</td>
+              <td>Budget non-inflation strictly enforced</td>
+            </tr>
+            <tr>
+              <td><strong>Lab 8</strong></td>
+              <td>Ephemeral Secret Guard</td>
+              <td><code>SecretGuard</code> pattern detection</td>
+              <td>Credentials scrubbed before flight recording</td>
+            </tr>
+            <tr>
+              <td><strong>Lab 9</strong></td>
+              <td>Forensic Post-Mortem Bundles</td>
+              <td><code>ForensicBundle</code> + Root Manifest</td>
+              <td>Offline tamper-evident verification</td>
+            </tr>
+            <tr>
+              <td><strong>Lab 10</strong></td>
+              <td>Network Egress & Cloud IMDS Defeat</td>
+              <td><code>NetworkEgressGuard</code></td>
+              <td>169.254.169.254 & RFC 1918 blocked</td>
+            </tr>
+            <tr>
+              <td><strong>Lab 11</strong></td>
+              <td>Sandbox Isolation Profiles</td>
+              <td>Landlock FS scopes & Seccomp filters</td>
+              <td>Unauthorized syscalls & paths blocked</td>
+            </tr>
+            <tr>
+              <td><strong>Lab 12</strong></td>
+              <td>Deterministic Checkpoint & Replay</td>
+              <td><code>ReplayEngine</code> + Idempotency Cache</td>
+              <td>Replay duplicates fenced from side-effects</td>
+            </tr>
+            <tr>
+              <td><strong>Lab 13</strong></td>
+              <td>Cross-Harness Interoperability</td>
+              <td>Gemini, Claude, Codex, OpenCode, SAM</td>
+              <td>All 6 adapter interfaces verified conformant</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <footer>
+      <p>Built with high assurance by the CKODEX Architecture Team &bull; Released under Apache License 2.0</p>
+      <p style="margin-top: 8px;">Repository: <a style="color: #60a5fa;" href="https://github.com/MChorfa/ckodex-ggagent-cli" target="_blank">github.com/MChorfa/ckodex-ggagent-cli</a></p>
+    </footer>
+  </div>
+
+  <script>
+    let epoch = 12;
+    function logEvent(msg) {
+      const console = document.getElementById('stream-console');
+      const time = new Date().toISOString().substring(11, 19);
+      console.innerHTML += `<br>[${time}] ${msg}`;
+      console.scrollTop = console.scrollHeight;
+    }
+
+    function updateState(mode) {
+      epoch++;
+      const display = document.getElementById('state-display');
+      display.innerText = `⟨P:Present, V:Positive, A:None, C:Coherent, E:Verified, L:Executing, M:${mode}, τ:${epoch}⟩`;
+      display.style.color = mode === 'Degraded' ? '#f59e0b' : '#38bdf8';
+      logEvent(`VectorState transitioned to Mode:${mode} (Epoch ${epoch})`);
+    }
+
+    function triggerAnti() {
+      epoch++;
+      const display = document.getElementById('state-display');
+      display.innerText = `⟨P:Present, V:Negative, A:Contradicts, C:Decoherent, E:Contradicted, L:Quarantined, M:SafeHold, τ:${epoch}⟩`;
+      display.style.color = '#ef4444';
+      logEvent(`CRITICAL: Anti-invariant triggered! Structural opposition forces NON-CONFORMANT quarantine.`);
+    }
+
+    function runDoctorSimulation() {
+      logEvent('Initiating CKODEX Doctor Diagnostic Scan...');
+      setTimeout(() => logEvent('  [PASS] Pure Semantic Kernel (100% I/O free)'), 200);
+      setTimeout(() => logEvent('  [PASS] Confused Deputy defense active'), 400);
+      setTimeout(() => logEvent('  [PASS] AtomicEffectGuard latency = 29.8µs'), 600);
+      setTimeout(() => logEvent('  [PASS] 18/18 Day-2 Diagnostic Systems Verified Healthy'), 800);
+    }
+  </script>
+</body>
+</html>

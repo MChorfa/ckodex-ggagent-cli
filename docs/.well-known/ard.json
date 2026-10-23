@@ -1,0 +1,46 @@
+{
+  "version": "1.0",
+  "publisher": "CKODEX Architecture Team",
+  "domain": "mchorfa.github.io/ckodex-ggagent-cli",
+  "resources": [
+    {
+      "id": "ggagent-a2a-service",
+      "name": "CKODEX A2A Agent Service",
+      "type": "agent",
+      "version": "2.0.0",
+      "description": "High-assurance A2A protocol agent runtime with Confused Deputy defense (CVE-2026-18236)",
+      "endpoints": [
+        {
+          "name": "rpc",
+          "protocol": "a2a_rpc",
+          "uri": "https://mchorfa.github.io/ckodex-ggagent-cli/api/v1/a2a"
+        },
+        {
+          "name": "events",
+          "protocol": "a2a_rpc",
+          "uri": "https://mchorfa.github.io/ckodex-ggagent-cli/api/v1/a2a/events"
+        }
+      ],
+      "capabilities": [
+        {
+          "id": "evaluate_conformance",
+          "name": "Evaluate Conformance",
+          "description": "Runs conformance vector evaluation with hard anti-invariants",
+          "tags": ["governance", "conformance"]
+        },
+        {
+          "id": "subagent_dispatch",
+          "name": "Subagent Dispatch",
+          "description": "Orchestrates multi-tier subagents across the 77 canonical strategies",
+          "tags": ["orchestration", "subagents"]
+        },
+        {
+          "id": "atomic_effect_guard",
+          "name": "AtomicEffectGuard Verification",
+          "description": "Enforces use-time material argument binding against Loopjacking",
+          "tags": ["security", "guard"]
+        }
+      ]
+    }
+  ]
+}
