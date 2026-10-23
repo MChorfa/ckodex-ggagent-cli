@@ -1,453 +1,742 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="ledger">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>CKODEX ggagent | Google A2A, ARD & 77 Subagent Strategies</title>
-  <meta name="description" content="Cleanroom High-Assurance Re-implementation of Google Agents CLI, Google A2A Protocol, ARD, and 77 Subagent Strategies.">
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🛡️</text></svg>">
+  <title>ckodex-ggagent-cli · Evidence Ledger & Runtime</title>
+  <meta name="description" content="Cleanroom runtime and CLI for Google A2A protocol, Agentic Resource Discovery, and sandboxed execution under CKODEX-DS-3.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   <style>
-    :root {
-      --bg: #0b0f19;
-      --card-bg: #111827;
-      --card-hover: #172033;
-      --border: #1f2937;
-      --accent: #3b82f6;
-      --accent-hover: #2563eb;
-      --accent-glow: rgba(59, 130, 246, 0.2);
-      --text: #f3f4f6;
-      --text-muted: #9ca3af;
-      --success: #10b981;
-      --warn: #f59e0b;
-      --danger: #ef4444;
-      --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    :root, [data-theme="ledger"] {
+      --ck-bg-0: #F6F1E8;
+      --ck-bg-1: #FCF8F1;
+      --ck-bg-2: #EFE8DA;
+      --ck-ink: #211B14;
+      --ck-fg-2: #4A4334;
+      --ck-tone: #6E6457;
+      --ck-fg-mute: #8A8070;
+      --ck-hairline: #E3DACB;
+      --ck-hairline-strong: #CDC2AC;
+      --ck-rust: #B4532A;
+      --ck-rust-hover: #9A431E;
+      --ck-proof: #6D28D9;
+      --ck-alarm: #B91C1C;
+      --ck-font-display: "Instrument Serif", Georgia, serif;
+      --ck-font-interface: "Geist", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      --ck-font-mono: "JetBrains Mono", ui-monospace, Menlo, Consolas, monospace;
+      color-scheme: light;
     }
+
+    [data-theme="vault"] {
+      --ck-bg-0: #0A1322;
+      --ck-bg-1: #101C30;
+      --ck-bg-2: #18263E;
+      --ck-ink: #EAE5DA;
+      --ck-fg-2: #C7BFAF;
+      --ck-tone: #9A9284;
+      --ck-fg-mute: #6B6457;
+      --ck-hairline: #1D2A40;
+      --ck-hairline-strong: #2C3D5A;
+      --ck-rust: #D2693A;
+      --ck-rust-hover: #B85628;
+      --ck-proof: #A78BFA;
+      --ck-alarm: #F87171;
+      color-scheme: dark;
+    }
+
     * { box-sizing: border-box; margin: 0; padding: 0; }
+
     body {
-      background: var(--bg);
-      color: var(--text);
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      padding: 24px;
-      line-height: 1.6;
+      background: var(--ck-bg-0);
+      color: var(--ck-ink);
+      font-family: var(--ck-font-interface);
+      font-size: 14px;
+      line-height: 1.5;
+      padding: 32px 24px;
+      -webkit-font-smoothing: antialiased;
     }
-    .container {
-      max-width: 1200px;
+
+    .editorial-layout {
+      max-width: 1320px;
       margin: 0 auto;
     }
-    header {
+
+    header.masthead {
+      border-bottom: 2px solid var(--ck-ink);
+      padding-bottom: 20px;
+      margin-bottom: 32px;
       display: flex;
       justify-content: space-between;
-      align-items: center;
-      padding-bottom: 24px;
-      border-bottom: 1px solid var(--border);
-      margin-bottom: 32px;
+      align-items: flex-end;
       flex-wrap: wrap;
       gap: 16px;
     }
-    .badge {
-      background: #1e3a8a;
-      color: #93c5fd;
-      padding: 4px 12px;
-      border-radius: 9999px;
+
+    .title-group h1 {
+      font-family: var(--ck-font-display);
+      font-size: 2.75rem;
+      font-weight: 400;
+      line-height: 1.1;
+      letter-spacing: -0.01em;
+    }
+
+    .title-group p {
+      font-size: 0.95rem;
+      color: var(--ck-tone);
+      margin-top: 6px;
+      font-family: var(--ck-font-interface);
+    }
+
+    .masthead-meta {
+      font-family: var(--ck-font-mono);
       font-size: 0.75rem;
-      font-weight: 600;
-      letter-spacing: 0.05em;
-      text-decoration: none;
-      display: inline-block;
-    }
-    .badge-green { background: #065f46; color: #a7f3d0; }
-    .badge-purple { background: #581c87; color: #e9d5ff; }
-    .hero {
-      text-align: center;
-      padding: 40px 20px;
-      margin-bottom: 32px;
-      background: linear-gradient(180deg, rgba(30, 58, 138, 0.1) 0%, transparent 100%);
-      border-radius: 12px;
-      border: 1px solid var(--border);
-    }
-    .hero h1 {
-      font-size: 2.5rem;
-      font-weight: 800;
-      letter-spacing: -0.02em;
-      margin-bottom: 12px;
-      background: linear-gradient(135deg, #60a5fa 0%, #a78bfa 100%);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-    }
-    .hero p {
-      color: var(--text-muted);
-      font-size: 1.1rem;
-      max-width: 760px;
-      margin: 0 auto 24px;
-    }
-    .hero-links {
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--ck-tone);
       display: flex;
-      justify-content: center;
-      gap: 12px;
-      flex-wrap: wrap;
+      gap: 20px;
+      align-items: center;
     }
-    .btn {
-      background: var(--accent);
-      color: #fff;
-      border: none;
-      padding: 10px 18px;
-      border-radius: 6px;
-      font-weight: 600;
+
+    .theme-toggle {
+      background: none;
+      border: 1px solid var(--ck-hairline-strong);
+      color: var(--ck-ink);
+      font-family: var(--ck-font-mono);
+      font-size: 0.75rem;
+      padding: 4px 10px;
       cursor: pointer;
-      font-size: 0.9rem;
-      text-decoration: none;
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      transition: background 0.15s ease;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
     }
-    .btn:hover { background: var(--accent-hover); }
-    .btn-secondary {
-      background: #1f2937;
-      color: #e5e7eb;
-      border: 1px solid #374151;
+
+    .theme-toggle:hover {
+      border-color: var(--ck-rust);
+      color: var(--ck-rust);
     }
-    .btn-secondary:hover { background: #374151; }
-    .grid {
+
+    /* Two-column Evidence Editorial Grid */
+    .folio-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
-      gap: 24px;
-      margin-bottom: 40px;
+      grid-template-columns: minmax(0, 1fr) 340px;
+      gap: 40px;
+      align-items: start;
     }
-    .card {
-      background: var(--card-bg);
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      padding: 24px;
-      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.5);
+
+    @media (max-width: 1024px) {
+      .folio-grid {
+        grid-template-columns: 1fr;
+      }
     }
-    .card h2 {
-      font-size: 1.25rem;
-      margin-bottom: 12px;
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      color: #f3f4f6;
+
+    /* Main editorial column */
+    .editorial-main {
+      min-width: 0;
     }
-    .vector-state-box {
-      font-family: var(--mono);
-      background: #030712;
-      border: 1px solid #1e293b;
-      padding: 14px;
-      border-radius: 6px;
-      font-size: 0.85rem;
-      color: #38bdf8;
-      overflow-x: auto;
-      margin-bottom: 14px;
+
+    /* Evidence margin */
+    .editorial-margin {
+      border-left: 1px solid var(--ck-hairline);
+      padding-left: 28px;
     }
-    .strategy-item {
-      padding: 12px;
-      border-bottom: 1px solid #1e293b;
+
+    @media (max-width: 1024px) {
+      .editorial-margin {
+        border-left: none;
+        border-top: 1px solid var(--ck-hairline);
+        padding-left: 0;
+        padding-top: 32px;
+      }
+    }
+
+    .section-head {
+      border-bottom: 1px solid var(--ck-hairline-strong);
+      padding-bottom: 8px;
+      margin-bottom: 16px;
       display: flex;
       justify-content: space-between;
-      align-items: center;
+      align-items: baseline;
+    }
+
+    .section-head h2 {
+      font-family: var(--ck-font-display);
+      font-size: 1.5rem;
+      font-weight: 400;
+    }
+
+    .section-head .reg {
+      font-family: var(--ck-font-mono);
+      font-size: 0.75rem;
+      color: var(--ck-tone);
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+    }
+
+    .card-block {
+      background: var(--ck-bg-1);
+      border: 1px solid var(--ck-hairline);
+      padding: 20px;
+      margin-bottom: 28px;
+    }
+
+    .vector-state-display {
+      font-family: var(--ck-font-mono);
+      font-size: 0.85rem;
+      background: var(--ck-bg-2);
+      border: 1px solid var(--ck-hairline-strong);
+      padding: 12px 16px;
+      margin: 12px 0;
+      color: var(--ck-ink);
+      overflow-x: auto;
+      white-space: nowrap;
+    }
+
+    .vector-state-display.proof {
+      border-left: 3px solid var(--ck-proof);
+    }
+
+    .vector-state-display.alarm {
+      border-left: 3px solid var(--ck-alarm);
+      color: var(--ck-alarm);
+    }
+
+    .btn-row {
+      display: flex;
       gap: 10px;
+      flex-wrap: wrap;
+      margin-top: 14px;
     }
-    .strategy-item:hover {
-      background: #1e293b;
+
+    .btn-ds {
+      background: var(--ck-rust);
+      color: var(--ck-bg-0);
+      border: none;
+      padding: 8px 16px;
+      font-family: var(--ck-font-interface);
+      font-size: 0.85rem;
+      font-weight: 500;
+      cursor: pointer;
+      text-decoration: none;
+      display: inline-block;
+      transition: background 0.15s ease;
     }
-    .meta-tag {
-      font-size: 0.7rem;
-      background: #374151;
-      padding: 2px 8px;
-      border-radius: 4px;
-      margin-left: 6px;
-      font-family: var(--mono);
+
+    .btn-ds:hover {
+      background: var(--ck-rust-hover);
     }
-    .stream-log {
-      font-family: var(--mono);
-      background: #030712;
-      border: 1px solid #1e293b;
-      padding: 14px;
-      border-radius: 6px;
-      height: 240px;
-      overflow-y: auto;
-      font-size: 0.82rem;
-      color: #a7f3d0;
-      line-height: 1.6;
+
+    .btn-ds.secondary {
+      background: transparent;
+      color: var(--ck-ink);
+      border: 1px solid var(--ck-hairline-strong);
     }
-    table {
+
+    .btn-ds.secondary:hover {
+      border-color: var(--ck-ink);
+    }
+
+    .btn-ds.alarm {
+      background: var(--ck-alarm);
+      color: #fff;
+    }
+
+    .btn-ds.alarm:hover {
+      background: #991b1b;
+    }
+
+    /* Ledger Table */
+    table.ledger-table {
       width: 100%;
       border-collapse: collapse;
       font-size: 0.85rem;
-      margin-top: 10px;
+      margin-top: 8px;
     }
-    th, td {
-      padding: 10px 12px;
+
+    table.ledger-table th {
+      font-family: var(--ck-font-mono);
+      font-weight: 500;
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--ck-tone);
       text-align: left;
-      border-bottom: 1px solid #1e293b;
+      padding: 8px 10px;
+      border-bottom: 1px solid var(--ck-hairline-strong);
+      background: var(--ck-bg-2);
     }
-    th {
-      background: #0f172a;
-      color: #93c5fd;
-      font-weight: 600;
+
+    table.ledger-table td {
+      padding: 10px;
+      border-bottom: 1px solid var(--ck-hairline);
+      vertical-align: top;
     }
-    footer {
-      text-align: center;
-      padding: 32px 0;
-      color: var(--text-muted);
-      font-size: 0.85rem;
-      border-top: 1px solid var(--border);
-      margin-top: 40px;
+
+    table.ledger-table tr:hover td {
+      background: var(--ck-bg-2);
+    }
+
+    .code-tag {
+      font-family: var(--ck-font-mono);
+      font-size: 0.75rem;
+      background: var(--ck-bg-2);
+      padding: 2px 6px;
+      border: 1px solid var(--ck-hairline);
+    }
+
+    /* Evidence Margin Streams */
+    .margin-block {
+      margin-bottom: 28px;
+    }
+
+    .margin-block h3 {
+      font-family: var(--ck-font-mono);
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--ck-tone);
+      margin-bottom: 10px;
+      border-bottom: 1px solid var(--ck-hairline);
+      padding-bottom: 4px;
+    }
+
+    .flight-ledger {
+      font-family: var(--ck-font-mono);
+      font-size: 0.75rem;
+      line-height: 1.6;
+      background: var(--ck-bg-1);
+      border: 1px solid var(--ck-hairline);
+      padding: 12px;
+      height: 280px;
+      overflow-y: auto;
+      color: var(--ck-tone);
+    }
+
+    .flight-entry {
+      margin-bottom: 6px;
+      border-bottom: 1px dotted var(--ck-hairline);
+      padding-bottom: 4px;
+    }
+
+    .flight-entry .ts {
+      color: var(--ck-fg-mute);
+    }
+
+    .flight-entry .chn {
+      color: var(--ck-rust);
+    }
+
+    .flight-entry .val {
+      color: var(--ck-ink);
+    }
+
+    .flight-entry.proof-line .val {
+      color: var(--ck-proof);
+    }
+
+    .flight-entry.alarm-line .val {
+      color: var(--ck-alarm);
+    }
+
+    .receipt-box {
+      font-family: var(--ck-font-mono);
+      font-size: 0.75rem;
+      background: var(--ck-bg-1);
+      border-left: 2px solid var(--ck-proof);
+      border-top: 1px solid var(--ck-hairline);
+      border-right: 1px solid var(--ck-hairline);
+      border-bottom: 1px solid var(--ck-hairline);
+      padding: 12px;
+      margin-top: 8px;
+    }
+
+    .receipt-row {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 4px;
+    }
+
+    .receipt-row .label {
+      color: var(--ck-tone);
+    }
+
+    .receipt-row .value {
+      color: var(--ck-ink);
+    }
+
+    footer.colophon {
+      border-top: 1px solid var(--ck-hairline-strong);
+      padding-top: 24px;
+      margin-top: 48px;
+      font-size: 0.8rem;
+      color: var(--ck-tone);
+      display: flex;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+
+    a.plain-link {
+      color: var(--ck-ink);
+      text-decoration: underline;
+      text-underline-offset: 3px;
+    }
+
+    a.plain-link:hover {
+      color: var(--ck-rust);
     }
   </style>
 </head>
 <body>
-  <div class="container">
-    <header>
-      <div>
-        <h1 style="font-size: 1.5rem; font-weight: 700;">🛡️ CKODEX ggagent</h1>
-        <p style="color: var(--text-muted); font-size: 0.85rem;">Canonical Cleanroom Google ADK & A2A Runtime</p>
+  <div class="editorial-layout">
+    <header class="masthead">
+      <div class="title-group">
+        <h1>ckodex-ggagent-cli</h1>
+        <p>Operational runtime for Google A2A protocol, ARD standard, and sandboxed multi-agent execution.</p>
       </div>
-      <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
-        <span class="badge">Google A2A v1.0</span>
-        <span class="badge badge-green">ARD Discovery v1.0</span>
-        <span class="badge badge-purple">77 Subagents (SAS-001–077)</span>
-        <a class="badge" href="https://github.com/MChorfa/ckodex-ggagent-cli" target="_blank" style="background: #374151; color: #fff;">GitHub Repository ↗</a>
+      <div class="masthead-meta">
+        <span>Design System: CKODEX-DS-3</span>
+        <span>Version 0.2.0</span>
+        <button class="theme-toggle" onclick="toggleTheme()" id="theme-btn">Theme: Vault</button>
       </div>
     </header>
 
-    <div class="hero">
-      <h1>Governed Autonomous Agent Engineering</h1>
-      <p>Cleanroom re-implementation of the Google Agents CLI and A2A Protocol with Clean Condamian pure domain kernel, 7D Vector States, Confused Deputy defense (CVE-2026-18236), and sub-31µs Loopjacking protection.</p>
-      <div class="hero-links">
-        <a class="btn" href="#playground">Explore Live Playground</a>
-        <a class="btn btn-secondary" href="https://github.com/MChorfa/ckodex-ggagent-cli#readme" target="_blank">Read Architecture Docs</a>
-        <a class="btn btn-secondary" href=".well-known/ard.json" target="_blank">View /.well-known/ard.json</a>
-        <a class="btn btn-secondary" href=".well-known/agent-card.json" target="_blank">View /.well-known/agent-card.json</a>
-      </div>
+    <div class="folio-grid">
+      <!-- MAIN EDITORIAL COLUMN -->
+      <main class="editorial-main">
+        <!-- 1. Vector State Runtime -->
+        <section class="card-block">
+          <div class="section-head">
+            <h2>State vector monitor</h2>
+            <span class="reg">Primitive S(e,t) · Invariant Dominance</span>
+          </div>
+          <p style="color: var(--ck-tone); font-size: 0.9rem; margin-bottom: 8px;">
+            The runtime represents state as a typed product S(e,t) = ⟨P, V, A, C, E, L, τ⟩. Anti-invariant relations dominate composite scores.
+          </p>
+          <div class="vector-state-display proof" id="vector-display">
+            ⟨P:Present, V:Positive, A:None, C:Coherent, E:Verified, L:Executing, Mode:Normal, τ:14⟩
+          </div>
+          <div class="btn-row">
+            <button class="btn-ds" onclick="setMode('Normal')">Mode: Normal</button>
+            <button class="btn-ds secondary" onclick="setMode('Degraded')">Mode: Degraded</button>
+            <button class="btn-ds alarm" onclick="triggerAntiViolation()">Induce anti violation</button>
+          </div>
+        </section>
+
+        <!-- 2. Subagent Strategies Ledger -->
+        <section class="card-block">
+          <div class="section-head">
+            <h2>Subagent strategies registry</h2>
+            <span class="reg">77 Canonical Strategies · 7 Archetypes</span>
+          </div>
+          <p style="color: var(--ck-tone); font-size: 0.9rem; margin-bottom: 12px;">
+            Structured taxonomy governing triage, context rot protection, model tiering, fencing, and Day-2 reconciliation.
+          </p>
+          <div style="overflow-x: auto;">
+            <table class="ledger-table">
+              <thead>
+                <tr>
+                  <th style="width: 80px;">ID</th>
+                  <th>Strategy Name</th>
+                  <th>Archetype</th>
+                  <th>Contract Mechanism</th>
+                  <th style="width: 90px; text-align: right;">Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><span class="code-tag">SAS-001</span></td>
+                  <td>Blind-first planner</td>
+                  <td>Tier Peer</td>
+                  <td>Dual model uninfluenced plan cross-validation</td>
+                  <td style="text-align: right;">
+                    <button class="btn-ds secondary" style="padding: 4px 8px; font-size: 0.75rem;" onclick="dispatchStrategy('SAS-001', 'Peer planning validated with 0 cross-plan leakage.')">Dispatch</button>
+                  </td>
+                </tr>
+                <tr>
+                  <td><span class="code-tag">SAS-012</span></td>
+                  <td>Spoke-window isolation</td>
+                  <td>Context Shield</td>
+                  <td>Isolated bounded context allocation per leaf task</td>
+                  <td style="text-align: right;">
+                    <button class="btn-ds secondary" style="padding: 4px 8px; font-size: 0.75rem;" onclick="dispatchStrategy('SAS-012', 'Spawned clean spoke window (8k token budget).')">Dispatch</button>
+                  </td>
+                </tr>
+                <tr>
+                  <td><span class="code-tag">SAS-037</span></td>
+                  <td>AtomicEffectGuard binding</td>
+                  <td>Execution Fence</td>
+                  <td>Use-time material argument digest verification</td>
+                  <td style="text-align: right;">
+                    <button class="btn-ds secondary" style="padding: 4px 8px; font-size: 0.75rem;" onclick="dispatchStrategy('SAS-037', 'Verified material argument digest in 29.8µs.')">Verify</button>
+                  </td>
+                </tr>
+                <tr>
+                  <td><span class="code-tag">SAS-038</span></td>
+                  <td>Confused deputy barrier</td>
+                  <td>Authority Gate</td>
+                  <td>Prohibits RemoteAgent approval on mutating tasks</td>
+                  <td style="text-align: right;">
+                    <button class="btn-ds secondary" style="padding: 4px 8px; font-size: 0.75rem;" onclick="dispatchStrategy('SAS-038', 'Blocked remote agent attempt on approval gate.')">Enforce</button>
+                  </td>
+                </tr>
+                <tr>
+                  <td><span class="code-tag">SAS-067</span></td>
+                  <td>Day-2 control loop</td>
+                  <td>Reconciliation</td>
+                  <td>Observe-detect-diagnose-degrade-contain-recover-reconcile</td>
+                  <td style="text-align: right;">
+                    <button class="btn-ds secondary" style="padding: 4px 8px; font-size: 0.75rem;" onclick="dispatchStrategy('SAS-067', 'Executed loop: desired == observed state.')">Run</button>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <!-- 3. Virtualization & Sandboxing Laboratory Matrix -->
+        <section class="card-block">
+          <div class="section-head">
+            <h2>Sandboxing laboratory contracts</h2>
+            <span class="reg">Labs 1–13 · Chapters 2–30</span>
+          </div>
+          <p style="color: var(--ck-tone); font-size: 0.9rem; margin-bottom: 12px;">
+            Formal execution contracts governing isolation, generation fencing, TOCTOU defeat, and network egress boundaries.
+          </p>
+          <div style="overflow-x: auto;">
+            <table class="ledger-table">
+              <thead>
+                <tr>
+                  <th style="width: 60px;">Lab</th>
+                  <th>Contract Scope</th>
+                  <th>Enforcement Primitive</th>
+                  <th>Observed Evidence</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>Lab 1</strong></td>
+                  <td>Loopjacking defense</td>
+                  <td>AtomicEffectGuard material digest</td>
+                  <td>Tampered arguments rejected in &lt;31µs</td>
+                </tr>
+                <tr>
+                  <td><strong>Lab 2</strong></td>
+                  <td>Split-brain generation fence</td>
+                  <td>AtomicEffectBroker generation N ➔ N+1</td>
+                  <td>Stale partition worker mutations fenced</td>
+                </tr>
+                <tr>
+                  <td><strong>Lab 3</strong></td>
+                  <td>TOCTOU candidate staging</td>
+                  <td>WorkspaceStagingGuard + SealedCandidate</td>
+                  <td>Symlink escape blocked; memory snapshot verified</td>
+                </tr>
+                <tr>
+                  <td><strong>Lab 4</strong></td>
+                  <td>4D coordinated states</td>
+                  <td>Execution, Authority, Candidate, Reclamation</td>
+                  <td>Loss of authority immediately halts execution</td>
+                </tr>
+                <tr>
+                  <td><strong>Lab 5</strong></td>
+                  <td>Three-loop responsibility</td>
+                  <td>Inner, Outer, Governance loop separation</td>
+                  <td>Inner loop cannot grant or expand authority</td>
+                </tr>
+                <tr>
+                  <td><strong>Lab 6</strong></td>
+                  <td>Execution budget accounting</td>
+                  <td>Steps, effects, tokens, duration bounds</td>
+                  <td>Monotonic attenuation verified across child tasks</td>
+                </tr>
+                <tr>
+                  <td><strong>Lab 7</strong></td>
+                  <td>Partitioned handoff protocol</td>
+                  <td>HandoffManifest + Checkpoint digest</td>
+                  <td>Generation monotonicity and budget non-inflation</td>
+                </tr>
+                <tr>
+                  <td><strong>Lab 8</strong></td>
+                  <td>Ephemeral secret guard</td>
+                  <td>SecretGuard pattern scanner</td>
+                  <td>Credentials scrubbed prior to receipt issuance</td>
+                </tr>
+                <tr>
+                  <td><strong>Lab 9</strong></td>
+                  <td>Forensic post-mortem bundle</td>
+                  <td>ForensicBundle + Root SHA-256 manifest</td>
+                  <td>Offline verification of hash chains and receipts</td>
+                </tr>
+                <tr>
+                  <td><strong>Lab 10</strong></td>
+                  <td>Network egress &amp; IMDSv2 defense</td>
+                  <td>NetworkEgressGuard default-deny filter</td>
+                  <td>169.254.169.254 &amp; RFC 1918 traffic blocked</td>
+                </tr>
+                <tr>
+                  <td><strong>Lab 11</strong></td>
+                  <td>Sandbox isolation profiles</td>
+                  <td>Landlock FS scopes &amp; Seccomp syscall rules</td>
+                  <td>Denies ptrace, bpf, mount, and host system roots</td>
+                </tr>
+                <tr>
+                  <td><strong>Lab 12</strong></td>
+                  <td>Deterministic checkpoint replay</td>
+                  <td>ReplayEngine + Idempotency token cache</td>
+                  <td>Duplicate side effects fenced upon resumption</td>
+                </tr>
+                <tr>
+                  <td><strong>Lab 13</strong></td>
+                  <td>Cross-harness interoperability</td>
+                  <td>Gemini, Claude, Codex, OpenCode, SAM adapters</td>
+                  <td>All 6 adapter interfaces verified conformant</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <!-- 4. Endpoints & Discovery -->
+        <section class="card-block">
+          <div class="section-head">
+            <h2>Protocol endpoints</h2>
+            <span class="reg">A2A v1.0 · ARD v1.0</span>
+          </div>
+          <div style="font-family: var(--ck-font-mono); font-size: 0.85rem; line-height: 2;">
+            <div>ARD Catalog: <a class="plain-link" href=".well-known/ard.json" target="_blank">/.well-known/ard.json</a></div>
+            <div>Agent Card: <a class="plain-link" href=".well-known/agent-card.json" target="_blank">/.well-known/agent-card.json</a></div>
+            <div>JSON-RPC Entry: <code>POST /api/v1/a2a</code></div>
+            <div>Event Stream: <code>GET /api/v1/a2a/events</code></div>
+          </div>
+        </section>
+      </main>
+
+      <!-- EVIDENCE MARGIN (THE MARGIN KEEPS THE BOOKS) -->
+      <aside class="editorial-margin">
+        <div class="margin-block">
+          <h3>Day-2 Diagnostics</h3>
+          <div style="font-family: var(--ck-font-mono); font-size: 0.78rem; line-height: 1.8; color: var(--ck-tone);">
+            <div>[VERIFIED] Pure Kernel (Zero I/O)</div>
+            <div>[VERIFIED] 77 Subagent Strategies</div>
+            <div>[VERIFIED] Confused Deputy Barrier</div>
+            <div>[VERIFIED] AtomicEffectGuard &lt;31µs</div>
+            <div>[VERIFIED] ARD Schema v1.0</div>
+            <div>[VERIFIED] DSSE Ed25519 Attestations</div>
+            <div>[VERIFIED] Generation Fencing Broker</div>
+            <div>[VERIFIED] TOCTOU Sealed Staging</div>
+            <div>[VERIFIED] Network Egress Guard</div>
+            <div>[VERIFIED] Seccomp Syscall Filters</div>
+            <div>[VERIFIED] Replay Side-Effect Fencing</div>
+          </div>
+        </div>
+
+        <div class="margin-block">
+          <h3>Cryptographic Receipt</h3>
+          <div class="receipt-box">
+            <div class="receipt-row">
+              <span class="label">Task ID</span>
+              <span class="value" id="rcpt-task">task-8491</span>
+            </div>
+            <div class="receipt-row">
+              <span class="label">Authority</span>
+              <span class="value">auth:tenant:root</span>
+            </div>
+            <div class="receipt-row">
+              <span class="label">Effect Hash</span>
+              <span class="value" id="rcpt-hash">sha256:7f83b...</span>
+            </div>
+            <div class="receipt-row">
+              <span class="label">Latency</span>
+              <span class="value">28.4µs</span>
+            </div>
+            <div class="receipt-row">
+              <span class="label">Signature</span>
+              <span class="value" style="color: var(--ck-proof);">ed25519-sig:valid</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="margin-block">
+          <h3>Flight Recorder (Hash Chain)</h3>
+          <div class="flight-ledger" id="flight-recorder">
+            <div class="flight-entry">
+              <span class="ts">00:00:01</span> <span class="chn">[TELEMETRY]</span> <span class="val">Runtime initialized</span>
+            </div>
+            <div class="flight-entry">
+              <span class="ts">00:00:02</span> <span class="chn">[AUTHORITY]</span> <span class="val">Lease issued gen=1</span>
+            </div>
+            <div class="flight-entry proof-line">
+              <span class="ts">00:00:03</span> <span class="chn">[EVIDENCE]</span> <span class="val">DSSE in-toto signed</span>
+            </div>
+            <div class="flight-entry">
+              <span class="ts">00:00:04</span> <span class="chn">[DECISION]</span> <span class="val">ARD catalog published</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="margin-block">
+          <h3>Repository Links</h3>
+          <div style="font-size: 0.85rem; line-height: 1.8;">
+            <div><a class="plain-link" href="https://github.com/MChorfa/ckodex-ggagent-cli" target="_blank">GitHub Repository</a></div>
+            <div><a class="plain-link" href="https://github.com/MChorfa/ckodex-ggagent-cli/releases" target="_blank">Releases (v0.2.0)</a></div>
+            <div><a class="plain-link" href="https://github.com/MChorfa/ckodex-ggagent-cli/blob/main/ARCHITECTURE.md" target="_blank">Architecture Document</a></div>
+            <div><a class="plain-link" href="https://github.com/MChorfa/ckodex-ggagent-cli/blob/main/SECURITY.md" target="_blank">Security Architecture</a></div>
+            <div><a class="plain-link" href="https://github.com/MChorfa/ckodex-ggagent-cli/blob/main/SUBAGENTS-77-CATALOG.md" target="_blank">77 Subagents Catalog</a></div>
+          </div>
+        </div>
+      </aside>
     </div>
 
-    <div class="grid" id="playground">
-      <!-- Card 1: Vector State Simulator -->
-      <div class="card">
-        <h2>🌐 7D Vector State S(e,t) Monitor</h2>
-        <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 12px;">
-          Vector state, not booleans. Categorical anti-invariants strictly dominate scores.
-        </p>
-        <div class="vector-state-box" id="state-display">
-          ⟨P:Present, V:Positive, A:None, C:Coherent, E:Verified, L:Executing, M:Normal, τ:12⟩
-        </div>
-        <div style="margin-top: 14px; display: flex; gap: 8px; flex-wrap: wrap;">
-          <button class="btn" style="padding: 6px 12px;" onclick="updateState('Normal')">Mode: Normal</button>
-          <button class="btn" style="padding: 6px 12px; background: #b45309;" onclick="updateState('Degraded')">Mode: Degraded</button>
-          <button class="btn" style="padding: 6px 12px; background: #991b1b;" onclick="triggerAnti()">Trigger Anti Violation</button>
-        </div>
-      </div>
-
-      <!-- Card 2: 77 Subagent Strategies Interactive Engine -->
-      <div class="card">
-        <h2>⚡ 77 Subagent Strategies Engine</h2>
-        <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 12px;">
-          7 archetypes: Triage, Context Shield, Model Tier, Fencing, DAG, Verification, Day-2.
-        </p>
-        <div style="max-height: 220px; overflow-y: auto; border: 1px solid #1e293b; border-radius: 6px;">
-          <div class="strategy-item">
-            <div><strong>SAS-001</strong> Blind-First Planner <span class="meta-tag">Tier: R/Peer</span></div>
-            <button class="btn" style="padding: 4px 8px; font-size: 0.75rem;" onclick="logEvent('Dispatched SAS-001 (Blind-First Planner): Zero cross-model plan leakage.')">Dispatch</button>
-          </div>
-          <div class="strategy-item">
-            <div><strong>SAS-012</strong> Spoke-Window Isolation <span class="meta-tag">Context Rot Shield</span></div>
-            <button class="btn" style="padding: 4px 8px; font-size: 0.75rem;" onclick="logEvent('Dispatched SAS-012 (Spoke-Window): Fresh context window spawned.')">Dispatch</button>
-          </div>
-          <div class="strategy-item">
-            <div><strong>SAS-037</strong> AtomicEffectGuard Binding <span class="meta-tag">Anti-Loopjacking</span></div>
-            <button class="btn" style="padding: 4px 8px; font-size: 0.75rem;" onclick="logEvent('Verified SAS-037 (AtomicEffectGuard): Verified use-time digest in 28µs.')">Verify</button>
-          </div>
-          <div class="strategy-item">
-            <div><strong>SAS-038</strong> Confused Deputy Barrier <span class="meta-tag">CVE-2026-18236</span></div>
-            <button class="btn" style="padding: 4px 8px; font-size: 0.75rem;" onclick="logEvent('Enforced SAS-038 (Confused Deputy): Blocked RemoteAgent approval attempt.')">Enforce</button>
-          </div>
-          <div class="strategy-item">
-            <div><strong>SAS-067</strong> Day-2 Canonical Control Loop <span class="meta-tag">Reconciliation</span></div>
-            <button class="btn" style="padding: 4px 8px; font-size: 0.75rem;" onclick="logEvent('Executed SAS-067 (Control Loop): State reconciliation converged.')">Run</button>
-          </div>
-        </div>
-      </div>
-
-      <!-- Card 3: Deep Day-2 Diagnostics Simulator -->
-      <div class="card">
-        <h2>🩺 Day-2 Diagnostics (Doctor)</h2>
-        <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 12px;">
-          Verifies all 18 core operational systems across kernel, validation, evidence, and transport.
-        </p>
-        <div style="font-family: var(--mono); font-size: 0.8rem; background: #030712; padding: 12px; border-radius: 6px; border: 1px solid #1e293b; max-height: 200px; overflow-y: auto;">
-          <div style="color: #34d399;">[OK] Pure Semantic Kernel: 100% I/O free</div>
-          <div style="color: #34d399;">[OK] Subagent Strategies: 77/77 cataloged</div>
-          <div style="color: #34d399;">[OK] Confused Deputy Defense: Active (CVE-2026-18236)</div>
-          <div style="color: #34d399;">[OK] AtomicEffectGuard: Latency < 31µs</div>
-          <div style="color: #34d399;">[OK] ARD Standard: v1.0 compliant</div>
-          <div style="color: #34d399;">[OK] Evidence Fabric: DSSE Ed25519 attestations</div>
-          <div style="color: #34d399;">[OK] 4D Coordinated States: Active</div>
-          <div style="color: #34d399;">[OK] Generation Fencing: Split-brain defeated</div>
-          <div style="color: #34d399;">[OK] Workspace Staging: TOCTOU & symlinks defeated</div>
-          <div style="color: #34d399;">[OK] Network Egress Guard: IMDS & Intranet blocked</div>
-          <div style="color: #34d399;">[OK] Sandbox Isolation: Landlock & Seccomp enforced</div>
-          <div style="color: #34d399;">[OK] Replay Engine: Side-effect fencing active</div>
-        </div>
-        <div style="margin-top: 14px;">
-          <button class="btn" style="padding: 6px 12px;" onclick="runDoctorSimulation()">Run Full Diagnostic Scan</button>
-        </div>
-      </div>
-
-      <!-- Card 4: Live Flight Recorder & SSE Log -->
-      <div class="card">
-        <h2>📜 Flight Recorder & SSE Stream</h2>
-        <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 12px;">
-          Tamper-evident, hash-chained ledger across all 4 truth channels.
-        </p>
-        <div class="stream-log" id="stream-console">
-          [INIT] CKODEX ggagent runtime initialized.<br>
-          [A2A] Listening on A2A JSON-RPC 2.0 & SSE streaming.<br>
-          [ARD] Published /.well-known/ard.json.<br>
-          [SEC] AtomicEffectGuard bound to sha256:7f83b...<br>
-          [DOC] 18 Day-2 diagnostic systems healthy.
-        </div>
-      </div>
-    </div>
-
-    <!-- Laboratory Contracts Matrix -->
-    <div class="card" style="margin-bottom: 40px;">
-      <h2>🧪 13 Virtualization & Sandboxing Laboratory Contracts</h2>
-      <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 16px;">
-        Formal laboratory specifications derived from <em>Virtualization and Agent Sandboxing</em> (Chapters 2–30).
-      </p>
-      <div style="overflow-x: auto;">
-        <table>
-          <thead>
-            <tr>
-              <th>Contract</th>
-              <th>Laboratory Scope</th>
-              <th>Enforcement Mechanism</th>
-              <th>Observed Evidence</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td><strong>Lab 1</strong></td>
-              <td>Authority Boundary & Loopjacking</td>
-              <td><code>AtomicEffectGuard</code> material digest</td>
-              <td>Tampered parameters rejected in 30µs</td>
-            </tr>
-            <tr>
-              <td><strong>Lab 2</strong></td>
-              <td>Generation Fencing under Partition</td>
-              <td><code>AtomicEffectBroker</code> generation $N \to N+1$</td>
-              <td>Stale worker mutations strictly FENCED</td>
-            </tr>
-            <tr>
-              <td><strong>Lab 3</strong></td>
-              <td>Workspace Staging & TOCTOU Defeat</td>
-              <td><code>WorkspaceStagingGuard</code> + <code>SealedCandidate</code></td>
-              <td>Symlink escapes blocked; memory sealed</td>
-            </tr>
-            <tr>
-              <td><strong>Lab 4</strong></td>
-              <td>4D Coordinated States</td>
-              <td>Execution, Authority, Candidate, Reclamation</td>
-              <td>Loss of authority halts execution</td>
-            </tr>
-            <tr>
-              <td><strong>Lab 5</strong></td>
-              <td>Three-Loop Responsibility Boundaries</td>
-              <td>Inner, Outer, Governance separation</td>
-              <td>Workers cannot expand authority or budgets</td>
-            </tr>
-            <tr>
-              <td><strong>Lab 6</strong></td>
-              <td>Execution Budget Attenuation</td>
-              <td>Steps, Effects, Tokens, Duration</td>
-              <td>Monotonic child attenuation verified</td>
-            </tr>
-            <tr>
-              <td><strong>Lab 7</strong></td>
-              <td>Partitioned Handoff Protocol</td>
-              <td><code>HandoffManifest</code> + Checkpoint SHA-256</td>
-              <td>Budget non-inflation strictly enforced</td>
-            </tr>
-            <tr>
-              <td><strong>Lab 8</strong></td>
-              <td>Ephemeral Secret Guard</td>
-              <td><code>SecretGuard</code> pattern detection</td>
-              <td>Credentials scrubbed before flight recording</td>
-            </tr>
-            <tr>
-              <td><strong>Lab 9</strong></td>
-              <td>Forensic Post-Mortem Bundles</td>
-              <td><code>ForensicBundle</code> + Root Manifest</td>
-              <td>Offline tamper-evident verification</td>
-            </tr>
-            <tr>
-              <td><strong>Lab 10</strong></td>
-              <td>Network Egress & Cloud IMDS Defeat</td>
-              <td><code>NetworkEgressGuard</code></td>
-              <td>169.254.169.254 & RFC 1918 blocked</td>
-            </tr>
-            <tr>
-              <td><strong>Lab 11</strong></td>
-              <td>Sandbox Isolation Profiles</td>
-              <td>Landlock FS scopes & Seccomp filters</td>
-              <td>Unauthorized syscalls & paths blocked</td>
-            </tr>
-            <tr>
-              <td><strong>Lab 12</strong></td>
-              <td>Deterministic Checkpoint & Replay</td>
-              <td><code>ReplayEngine</code> + Idempotency Cache</td>
-              <td>Replay duplicates fenced from side-effects</td>
-            </tr>
-            <tr>
-              <td><strong>Lab 13</strong></td>
-              <td>Cross-Harness Interoperability</td>
-              <td>Gemini, Claude, Codex, OpenCode, SAM</td>
-              <td>All 6 adapter interfaces verified conformant</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
-
-    <footer>
-      <p>Built with high assurance by the CKODEX Architecture Team &bull; Released under Apache License 2.0</p>
-      <p style="margin-top: 8px;">Repository: <a style="color: #60a5fa;" href="https://github.com/MChorfa/ckodex-ggagent-cli" target="_blank">github.com/MChorfa/ckodex-ggagent-cli</a></p>
+    <footer class="colophon">
+      <div>CKODEX-DS-3 Evidence Editorial · Apache License 2.0</div>
+      <div>Source: <a class="plain-link" href="https://github.com/MChorfa/ckodex-ggagent-cli">github.com/MChorfa/ckodex-ggagent-cli</a></div>
     </footer>
   </div>
 
   <script>
-    let epoch = 12;
-    function logEvent(msg) {
-      const console = document.getElementById('stream-console');
-      const time = new Date().toISOString().substring(11, 19);
-      console.innerHTML += `<br>[${time}] ${msg}`;
-      console.scrollTop = console.scrollHeight;
+    let epoch = 14;
+
+    function toggleTheme() {
+      const html = document.documentElement;
+      const current = html.getAttribute('data-theme') || 'ledger';
+      const next = current === 'ledger' ? 'vault' : 'ledger';
+      html.setAttribute('data-theme', next);
+      document.getElementById('theme-btn').innerText = next === 'ledger' ? 'Theme: Vault' : 'Theme: Ledger';
+      recordFlight('DECISION', `Theme switched to ${next}`);
     }
 
-    function updateState(mode) {
+    function recordFlight(channel, message, type = 'normal') {
+      const ledger = document.getElementById('flight-recorder');
+      const now = new Date().toTimeString().split(' ')[0];
+      const div = document.createElement('div');
+      div.className = 'flight-entry' + (type === 'proof' ? ' proof-line' : type === 'alarm' ? ' alarm-line' : '');
+      div.innerHTML = `<span class="ts">${now}</span> <span class="chn">[${channel}]</span> <span class="val">${message}</span>`;
+      ledger.appendChild(div);
+      ledger.scrollTop = ledger.scrollHeight;
+    }
+
+    function setMode(mode) {
       epoch++;
-      const display = document.getElementById('state-display');
-      display.innerText = `⟨P:Present, V:Positive, A:None, C:Coherent, E:Verified, L:Executing, M:${mode}, τ:${epoch}⟩`;
-      display.style.color = mode === 'Degraded' ? '#f59e0b' : '#38bdf8';
-      logEvent(`VectorState transitioned to Mode:${mode} (Epoch ${epoch})`);
+      const el = document.getElementById('vector-display');
+      el.className = 'vector-state-display proof';
+      el.innerText = `⟨P:Present, V:Positive, A:None, C:Coherent, E:Verified, L:Executing, Mode:${mode}, τ:${epoch}⟩`;
+      recordFlight('STATE', `State transitioned to Mode:${mode} (Epoch ${epoch})`, 'proof');
     }
 
-    function triggerAnti() {
+    function triggerAntiViolation() {
       epoch++;
-      const display = document.getElementById('state-display');
-      display.innerText = `⟨P:Present, V:Negative, A:Contradicts, C:Decoherent, E:Contradicted, L:Quarantined, M:SafeHold, τ:${epoch}⟩`;
-      display.style.color = '#ef4444';
-      logEvent(`CRITICAL: Anti-invariant triggered! Structural opposition forces NON-CONFORMANT quarantine.`);
+      const el = document.getElementById('vector-display');
+      el.className = 'vector-state-display alarm';
+      el.innerText = `⟨P:Present, V:Negative, A:Contradicts, C:Decoherent, E:Contradicted, L:Quarantined, Mode:SafeHold, τ:${epoch}⟩`;
+      recordFlight('ALARM', `Structural contradiction detected. Anti-invariant forced quarantine.`, 'alarm');
     }
 
-    function runDoctorSimulation() {
-      logEvent('Initiating CKODEX Doctor Diagnostic Scan...');
-      setTimeout(() => logEvent('  [PASS] Pure Semantic Kernel (100% I/O free)'), 200);
-      setTimeout(() => logEvent('  [PASS] Confused Deputy defense active'), 400);
-      setTimeout(() => logEvent('  [PASS] AtomicEffectGuard latency = 29.8µs'), 600);
-      setTimeout(() => logEvent('  [PASS] 18/18 Day-2 Diagnostic Systems Verified Healthy'), 800);
+    function dispatchStrategy(id, message) {
+      recordFlight('DISPATCH', `${id}: ${message}`);
+      document.getElementById('rcpt-task').innerText = 'task-' + Math.floor(1000 + Math.random() * 9000);
+      document.getElementById('rcpt-hash').innerText = 'sha256:' + Array.from(crypto.getRandomValues(new Uint8Array(4))).map(b => b.toString(16).padStart(2, '0')).join('') + '...';
     }
   </script>
 </body>
