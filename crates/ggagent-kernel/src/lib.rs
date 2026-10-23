@@ -24,6 +24,7 @@ pub mod lease;
 pub mod loops;
 pub mod network;
 pub mod sandbox_profile;
+pub mod spdx;
 pub mod strategies;
 pub mod vector_state;
 
@@ -50,6 +51,9 @@ pub use loops::{
 };
 pub use network::{EgressMode, NetworkEgressPolicy};
 pub use sandbox_profile::{ProfileTier, SandboxProfile};
+pub use spdx::{
+    SpdxChecksum, SpdxCreationInfo, SpdxDocument, SpdxExternalRef, SpdxPackage, SpdxRelationship,
+};
 pub use strategies::{StrategyArchetype, StrategyRegistry, SubagentStrategy};
 pub use vector_state::{
     AntiRelation, Coherence, EvidenceStatus, LifecycleState, Presence, RuntimeMode, Valence,

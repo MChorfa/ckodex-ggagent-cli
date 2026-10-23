@@ -56,4 +56,10 @@ pub enum ValidationError {
 
     #[error("Deterministic replay violation: {0}")]
     ReplayViolation(String),
+
+    #[error("SPDX 2.2 SBOM validation failed: {0}")]
+    InvalidSpdxDocument(String),
+
+    #[error("Microsoft sbom-tool execution error: {0}")]
+    SbomToolExecutionError(String),
 }

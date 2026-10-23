@@ -815,3 +815,51 @@ fn test_split_conformal_risk_calibration_certificate() {
     assert!(cert.empirical_coverage >= 0.90);
     assert!(cert.certificate_digest.starts_with("sha256-conformal:"));
 }
+
+#[test]
+fn test_microsoft_sbom_tool_integration_and_spdx_validation() {
+    let temp = tempdir().expect("tempdir");
+    let drop_path = temp.path();
+    let components_path = temp.path();
+
+    // 1. Generate SPDX 2.2 manifest via SbomToolBridge
+    let gen_result = ggagent_validation::SbomToolBridge::generate_manifest(
+        drop_path,
+        components_path,
+        "ckodex-ggagent-cli",
+        "0.2.0",
+        "CKODEX Architecture Team",
+        "https://github.com/MChorfa/ckodex-ggagent-cli",
+        false,
+    )
+    .expect("generate manifest succeeds");
+
+    assert!(gen_result.manifest_path.exists());
+    assert!(gen_result
+        .manifest_path
+        .ends_with("_manifest/spdx_2.2/manifest.spdx.json"));
+    assert_eq!(gen_result.spdx_document.spdx_version, "SPDX-2.2");
+    assert_eq!(gen_result.spdx_document.data_license, "CC0-1.0");
+    assert!(gen_result.receipt.verify_signature());
+
+    // 2. Validate using SpdxValidator
+    assert!(ggagent_validation::SpdxValidator::validate(&gen_result.spdx_document).is_ok());
+
+    // 3. Audit using SbomToolBridge::validate_manifest
+    let val_receipt = ggagent_validation::SbomToolBridge::validate_manifest(drop_path, None, false)
+        .expect("validate manifest succeeds");
+    assert!(val_receipt.verify_signature());
+    assert_eq!(val_receipt.action, "sbom_validate");
+
+    // 4. Bi-directional crosswalk conversion
+    let cdx = gen_result.spdx_document.to_cyclonedx();
+    assert_eq!(cdx.bom_format, "CycloneDX");
+    assert_eq!(cdx.spec_version, "1.7");
+
+    let roundtrip_spdx = ggagent_kernel::spdx::SpdxDocument::from_cyclonedx(
+        &cdx,
+        "https://github.com/MChorfa/ckodex-ggagent-cli",
+    );
+    assert_eq!(roundtrip_spdx.spdx_version, "SPDX-2.2");
+    assert!(ggagent_validation::SpdxValidator::validate(&roundtrip_spdx).is_ok());
+}

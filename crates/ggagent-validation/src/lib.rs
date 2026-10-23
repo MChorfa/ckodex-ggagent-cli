@@ -18,7 +18,9 @@ pub mod handoff_validator;
 pub mod mesh_orchestrator;
 pub mod network_guard;
 pub mod replay_engine;
+pub mod sbom_tool_bridge;
 pub mod secret_guard;
+pub mod spdx_validator;
 pub mod workspace_staging;
 
 pub use agent_card::AgentCardValidator;
@@ -30,5 +32,7 @@ pub use handoff_validator::HandoffValidator;
 pub use mesh_orchestrator::{MeshExecutionReport, MeshOrchestrator, StageResult};
 pub use network_guard::NetworkEgressGuard;
 pub use replay_engine::{ReplayEngine, ResumedTaskState};
+pub use sbom_tool_bridge::{SbomExecutionResult, SbomToolBridge};
 pub use secret_guard::SecretGuard;
+pub use spdx_validator::SpdxValidator;
 pub use workspace_staging::{SealedCandidate, WorkspaceStagingGuard};
