@@ -732,3 +732,86 @@ fn test_lab13_cross_harness_adapter_compatibility() {
         );
     }
 }
+
+#[test]
+fn test_collaborative_mesh_dag_orchestration() {
+    let temp = tempdir().expect("tempdir");
+    let task_id = "test-mesh-001";
+    let objective = "Hardened Clean Condamian domain refactor with NIST SP 800-53 controls";
+
+    let report =
+        ggagent_validation::MeshOrchestrator::execute_mesh(task_id, objective, temp.path())
+            .expect("Collaborative mesh execution succeeds");
+
+    assert_eq!(report.stages.len(), 4, "Mesh must execute exactly 4 stages");
+    assert_eq!(report.stages[0].agent_id, "gemini-topology-planner");
+    assert_eq!(report.stages[1].agent_id, "cohere-grounded-auditor");
+    assert_eq!(report.stages[2].agent_id, "codex-security-patcher");
+    assert_eq!(report.stages[3].agent_id, "claude-kernel-refactor");
+
+    assert!(report.all_passed);
+    assert_eq!(report.forensic_bundle.receipts.len(), 4);
+    assert!(report.forensic_bundle.verify_integrity());
+    assert_eq!(
+        report.final_vector_state.mode,
+        ggagent_kernel::vector_state::RuntimeMode::Normal
+    );
+}
+
+#[test]
+fn test_cyclonedx_1_7_aibom_generation_and_integrity() {
+    let bom = ggagent_kernel::aibom::AiBomDocument::standard_ggagent_bom();
+    assert_eq!(bom.bom_format, "CycloneDX");
+    assert_eq!(bom.spec_version, "1.7");
+    assert!(bom.serial_number.starts_with("urn:uuid:"));
+    assert_eq!(
+        bom.metadata
+            .properties
+            .get("ecma_standard")
+            .map(|s| s.as_str()),
+        Some("ECMA-424")
+    );
+
+    // Check components
+    let model_names: Vec<&str> = bom
+        .components
+        .iter()
+        .filter(|c| c.r#type == ggagent_kernel::aibom::ComponentType::MachineLearningModel)
+        .map(|c| c.name.as_str())
+        .collect();
+
+    assert!(model_names.contains(&"google-gemini-2.0-pro"));
+    assert!(model_names.contains(&"cohere-command-r-plus"));
+    assert!(model_names.contains(&"openai-codex-gpt4o"));
+    assert!(model_names.contains(&"anthropic-claude-3-7-sonnet"));
+
+    // Digest computation
+    let digest = bom.compute_digest();
+    assert!(digest.starts_with("sha256:"));
+
+    // Serialization / Deserialization idempotency
+    let serialized = serde_json::to_string(&bom).expect("serialize AI-BOM");
+    let deserialized: ggagent_kernel::aibom::AiBomDocument =
+        serde_json::from_str(&serialized).expect("deserialize AI-BOM");
+    assert_eq!(deserialized.compute_digest(), digest);
+}
+
+#[test]
+fn test_split_conformal_risk_calibration_certificate() {
+    // Calibration nonconformity scores (e.g. from holdout validation set)
+    let calibration_scores = vec![0.02, 0.05, 0.08, 0.12, 0.15, 0.20, 0.25, 0.30, 0.40, 0.50];
+    let alpha = 0.10; // 90% target coverage
+
+    let cert = ggagent_kernel::conformance::ConformalRiskCertificate::compute_split_conformal(
+        calibration_scores,
+        alpha,
+    )
+    .expect("Conformal calculation succeeds");
+
+    assert_eq!(cert.alpha, 0.10);
+    assert_eq!(cert.target_coverage, 0.90);
+    assert_eq!(cert.calibration_size, 10);
+    assert!(cert.finite_sample_valid);
+    assert!(cert.empirical_coverage >= 0.90);
+    assert!(cert.certificate_digest.starts_with("sha256-conformal:"));
+}

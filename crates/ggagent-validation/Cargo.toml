@@ -10,6 +10,7 @@ description = "Shared validation engine for ckodex-ggagent-cli: Agent Cards, ARD
 
 [dependencies]
 ggagent-kernel = { workspace = true }
+ggagent-evidence = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }

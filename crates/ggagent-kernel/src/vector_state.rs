@@ -170,6 +170,21 @@ impl VectorState {
         self
     }
 
+    /// Mutably set operational mode
+    pub fn set_runtime_mode(&mut self, mode: RuntimeMode) {
+        self.mode = mode;
+    }
+
+    /// Record a vector state transition with valence, anti-relation, and transition metadata
+    pub fn record_transition(&mut self, valence: Valence, anti: AntiRelation, note: &str) {
+        self.valence = valence;
+        self.anti = anti;
+        self.epoch += 1;
+        self.timestamp = Utc::now();
+        self.metadata
+            .insert(format!("transition_epoch_{}", self.epoch), note.to_string());
+    }
+
     /// Format vector state into standard notation: <P, V, A, C, E, L, tau>
     pub fn to_canonical_string(&self) -> String {
         format!(

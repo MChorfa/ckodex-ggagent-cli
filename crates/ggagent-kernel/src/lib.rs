@@ -12,6 +12,7 @@
 //! - Conformance vectors: delta(Pe, S0, X, C) -> <d, O, S1, E, R>
 
 pub mod a2a;
+pub mod aibom;
 pub mod ard;
 pub mod budget;
 pub mod checkpoint;
@@ -28,11 +29,13 @@ pub mod vector_state;
 
 // Re-exports
 pub use a2a::{A2AEvent, A2AMessage, A2APart, A2ARole, A2ATask, A2ATaskState, AgentCard};
+pub use aibom::{AiBomDocument, BomComponent, BomMetadata, ComponentType, ModelCardInfo};
 pub use ard::{ArdCapability, ArdDocument, ArdEndpoint, ArdProtocol, ArdResource, ArdResourceType};
 pub use budget::ExecutionBudget;
 pub use checkpoint::TaskCheckpoint;
 pub use conformance::{
-    ConformanceDisposition, ConformanceEvaluationResult, ConformanceStimulus, ConformanceVector,
+    ConformalRiskCertificate, ConformanceDisposition, ConformanceEvaluationResult,
+    ConformanceStimulus, ConformanceVector,
 };
 pub use coordinated_states::{
     AuthorityLifecycle, CandidateLifecycle, CoordinatedTaskState, ExecutionLifecycle,
