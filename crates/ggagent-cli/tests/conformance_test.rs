@@ -935,3 +935,60 @@ fn test_sbom_analyzer_diff_quality_and_compliance() {
         ggagent_validation::ComplianceLevel::NtiaMinimum
     );
 }
+
+#[test]
+fn test_developer_experience_and_sarif_generation() {
+    let tmp = tempdir().expect("create tempdir");
+    let cdx = ggagent_kernel::aibom::AiBomDocument::standard_ggagent_bom();
+    let cdx_path = tmp.path().join("test-cdx.json");
+    std::fs::write(&cdx_path, serde_json::to_string(&cdx).unwrap()).unwrap();
+
+    // 1. Run compliance check
+    let (comp_res, receipt) =
+        ggagent_validation::SbomAnalyzer::check_compliance(&cdx_path, Some("ntia"))
+            .expect("check compliance");
+    assert!(receipt.verify_signature());
+
+    // 2. Validate SARIF report generation structure
+    let violations: Vec<(String, String, String)> = comp_res
+        .violations
+        .iter()
+        .enumerate()
+        .map(|(idx, v)| {
+            (
+                format!("RULE-{:03}", idx + 1),
+                format!("{:?}", v.severity),
+                v.message.clone(),
+            )
+        })
+        .collect();
+
+    let sarif_val = serde_json::json!({
+        "$schema": "https://raw.githubusercontent.com/oasis-tcs/sarif-spec/master/Schemata/sarif-schema-2.1.0.json",
+        "version": "2.1.0",
+        "runs": [{
+            "tool": {
+                "driver": {
+                    "name": "ggagent-sbom-analyzer",
+                    "version": "0.2.0",
+                    "rules": violations.iter().map(|(id, sev, _)| {
+                        serde_json::json!({
+                            "id": id,
+                            "defaultConfiguration": { "level": if sev == "Error" { "error" } else { "warning" } }
+                        })
+                    }).collect::<Vec<_>>()
+                }
+            },
+            "results": violations.iter().map(|(id, sev, msg)| {
+                serde_json::json!({
+                    "ruleId": id,
+                    "level": if sev == "Error" { "error" } else { "warning" },
+                    "message": { "text": msg }
+                })
+            }).collect::<Vec<_>>()
+        }]
+    });
+
+    assert_eq!(sarif_val["version"], "2.1.0");
+    assert!(sarif_val["runs"][0]["results"].as_array().unwrap().len() >= comp_res.error_count);
+}

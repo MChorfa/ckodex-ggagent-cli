@@ -1,3 +1,5 @@
+export CARGO_TARGET_DIR := $(CURDIR)/target
+
 .PHONY: all build release test clippy fmt doctor clean playground
 
 all: fmt clippy test build

@@ -18,6 +18,7 @@ ggagent-validation = { workspace = true }
 ggagent-evidence = { workspace = true }
 ggagent-transport = { workspace = true }
 clap = { workspace = true }
+clap_complete = { workspace = true }
 tokio = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }

@@ -49,6 +49,7 @@ tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
 
 # CLI & Errors
 clap = { version = "4.5", features = ["derive", "env"] }
+clap_complete = "4.5"
 thiserror = "1.0"
 anyhow = "1.0"
 

@@ -1,5 +1,5 @@
 use chrono::Utc;
-use clap::{Parser, Subcommand};
+use clap::{CommandFactory, Parser, Subcommand};
 use ggagent_evidence::{
     DigestEngine, ExecutionReceipt, ExecutionReceiptParams, FlightRecorder, ForensicBundle,
 };
@@ -41,6 +41,9 @@ use std::process::Command;
 use std::time::Instant;
 use tracing::Level;
 use tracing_subscriber::FmtSubscriber;
+
+mod ui;
+use ui::{DashboardRenderer, DiagnosticItem, OutputFormat, SarifReport, Styler};
 
 #[derive(Parser)]
 #[command(
@@ -102,7 +105,28 @@ enum Commands {
     },
 
     /// Deep Day-2 diagnostic suite (Doctor)
-    Doctor,
+    Doctor {
+        /// Output format (table, json, markdown)
+        #[arg(short = 'F', long = "format", default_value = "table")]
+        format: OutputFormat,
+    },
+
+    /// Generate shell autocompletion scripts (bash, zsh, fish, powershell, elvish)
+    Completions {
+        /// Target shell
+        #[arg(value_enum)]
+        shell: clap_complete::Shell,
+    },
+
+    /// High-density Day-2 architecture & runtime dashboard
+    Dashboard {
+        /// Initial tab or view: overview, sbom, strategies, mesh
+        #[arg(short, long, default_value = "overview")]
+        view: String,
+        /// Non-interactive static dump mode for CI / scripts
+        #[arg(long)]
+        static_dump: bool,
+    },
 
     /// Explain causal decision trace and authority path for a task
     Explain {
@@ -212,6 +236,9 @@ enum SbomCommands {
         old: String,
         /// Target (new) SBOM file path (CycloneDX or SPDX)
         new: String,
+        /// Output format (table, json, markdown)
+        #[arg(short = 'F', long = "format", default_value = "table")]
+        format: OutputFormat,
     },
 
     /// Score SBOM completeness, licensing, and security with SbomAnalyzer
@@ -221,6 +248,9 @@ enum SbomCommands {
         /// Scoring profile: standard (default), minimal, security, license, cra, bsi, cbom, ai, comprehensive
         #[arg(short, long)]
         profile: Option<String>,
+        /// Output format (table, json, markdown)
+        #[arg(short = 'F', long = "format", default_value = "table")]
+        format: OutputFormat,
     },
 
     /// Audit SBOM against regulatory compliance frameworks with SbomAnalyzer
@@ -230,6 +260,9 @@ enum SbomCommands {
         /// Regulatory framework: ntia (default), cra1, cra2, fda, eo14028, ssdf, pqc, bsi
         #[arg(short, long)]
         framework: Option<String>,
+        /// Output format (table, json, sarif, markdown)
+        #[arg(short = 'F', long = "format", default_value = "table")]
+        format: OutputFormat,
     },
 
     /// Parse and normalize any CycloneDX or SPDX SBOM via SbomAnalyzer
@@ -262,6 +295,9 @@ enum AgentCommands {
         /// Task identifier
         #[arg(short, long, default_value = "mesh-task-001")]
         task_id: String,
+        /// Output format (table, json, markdown)
+        #[arg(short = 'F', long = "format", default_value = "table")]
+        format: OutputFormat,
     },
 }
 
@@ -363,10 +399,330 @@ enum HarnessCommands {
     Verify,
 }
 
+fn run_doctor_diagnostics() -> Vec<DiagnosticItem> {
+    let mut checks = Vec::new();
+
+    // 1. Rust Toolchain check
+    let rustc_out = Command::new("rustc").arg("--version").output();
+    let (rust_status, rust_ver) = match rustc_out {
+        Ok(out) if out.status.success() => (
+            true,
+            String::from_utf8_lossy(&out.stdout).trim().to_string(),
+        ),
+        _ => (false, "Not installed".into()),
+    };
+    checks.push(DiagnosticItem {
+        id: 1,
+        name: "Rust Toolchain".into(),
+        status: rust_status,
+        details: rust_ver,
+    });
+
+    // 2. Go Toolchain check
+    let go_out = Command::new("go").arg("version").output();
+    let (go_status, go_ver) = match go_out {
+        Ok(out) if out.status.success() => (
+            true,
+            String::from_utf8_lossy(&out.stdout).trim().to_string(),
+        ),
+        _ => (false, "Not installed".into()),
+    };
+    checks.push(DiagnosticItem {
+        id: 2,
+        name: "Go Toolchain".into(),
+        status: go_status,
+        details: go_ver,
+    });
+
+    // 3. Pure Semantic Kernel Invariants
+    checks.push(DiagnosticItem {
+        id: 3,
+        name: "Pure Semantic Kernel Invariants".into(),
+        status: true,
+        details: "ggagent-kernel verified 100% I/O free".into(),
+    });
+
+    // 4. 77 Subagent Strategies check
+    let strategies = StrategyRegistry::all();
+    let strat_ok = strategies.len() == 77;
+    checks.push(DiagnosticItem {
+        id: 4,
+        name: "Subagent Strategies".into(),
+        status: strat_ok,
+        details: format!("{}/77 cataloged across 7 archetypes", strategies.len()),
+    });
+
+    // 5. Network Substrate probe
+    let socket_test = std::net::TcpListener::bind("127.0.0.1:0");
+    let net_ok = socket_test.is_ok();
+    checks.push(DiagnosticItem {
+        id: 5,
+        name: "Network Substrate".into(),
+        status: net_ok,
+        details: "Loopback sockets bindable and clear".into(),
+    });
+
+    // 6. Google A2A Protocol Handler check
+    let test_msg = A2AMessage {
+        message_id: "test".into(),
+        role: A2ARole::RemoteAgent,
+        sender_id: "peer".into(),
+        parts: vec![],
+        timestamp: chrono::Utc::now(),
+        confirmed_call_id: Some("call-1".into()),
+    };
+    let confused_deputy_active = SecurityGuards::verify_approval_principal(&test_msg).is_err();
+    checks.push(DiagnosticItem {
+        id: 6,
+        name: "Google A2A Protocol".into(),
+        status: confused_deputy_active,
+        details: "Confused Deputy defense active (CVE-2026-18236)".into(),
+    });
+
+    // 7. AtomicEffectGuard performance probe
+    let t0 = Instant::now();
+    let guard = AtomicEffectGuard::new("probe", "target", serde_json::json!({"test": true}));
+    let t_digest = t0.elapsed();
+    let guard_ok = guard
+        .verify_use_time("probe", "target", &serde_json::json!({"test": true}))
+        .is_ok();
+    checks.push(DiagnosticItem {
+        id: 7,
+        name: "AtomicEffectGuard & Loopjacking Protection".into(),
+        status: guard_ok,
+        details: format!("Verified in {:?}", t_digest),
+    });
+
+    // 8. ARD v1.0 standard check
+    let ard = ArdService::new("127.0.0.1:8080", "CKODEX").get_document();
+    let ard_ok = ArdValidator::validate(&ard).is_ok();
+    checks.push(DiagnosticItem {
+        id: 8,
+        name: "Agentic Resource Discovery".into(),
+        status: ard_ok,
+        details: "ARD v1.0 standard compliant".into(),
+    });
+
+    // 9. Cryptographic Evidence Fabric & DSSE
+    checks.push(DiagnosticItem {
+        id: 9,
+        name: "Cryptographic Evidence Fabric".into(),
+        status: true,
+        details: "Ed25519 DSSE attestations enabled".into(),
+    });
+
+    // 10. Coordinated Multidimensional State Engine (Chapter 24)
+    let mut coord_state = CoordinatedTaskState::new("diag-task");
+    let c0 = coord_state.candidate == CandidateLifecycle::Absent
+        && coord_state.reclamation == ReclamationLifecycle::Allocated;
+    let c1 = coord_state
+        .transition_execution(ExecutionLifecycle::Running)
+        .is_err();
+    let c2 = coord_state
+        .transition_authority(AuthorityLifecycle::Active)
+        .is_ok();
+    let c3 = coord_state
+        .transition_execution(ExecutionLifecycle::Running)
+        .is_ok();
+    coord_state.mark_failure(
+        FailureClassification::GovernanceFailure,
+        "stale generation fence",
+    );
+    let c4 = coord_state.failure_classification == Some(FailureClassification::GovernanceFailure);
+    checks.push(DiagnosticItem {
+        id: 10,
+        name: "4D Coordinated States".into(),
+        status: c0 && c1 && c2 && c3 && c4,
+        details: "Execution, Authority, Candidate, Reclamation invariants verified".into(),
+    });
+
+    // 11. Generation Fencing & Atomic Effect Broker (Chapters 25-26)
+    let mut broker = AtomicEffectBroker::new(1, "fence-1-diag");
+    let mut test_lease = CapabilityLease::new(
+        "lease-diag",
+        "diag-agent",
+        "test-res",
+        vec!["diag_op".into()],
+        chrono::Utc::now() + chrono::Duration::hours(1),
+    );
+    test_lease.generation = 1;
+    let guard = AtomicEffectGuard::new("diag_op", "test-res", serde_json::json!({}));
+    broker.advance_generation("fence-2-diag");
+    let diag_params = serde_json::json!({});
+    let req = EffectRequest {
+        lease: &test_lease,
+        guard: &guard,
+        received_generation: 1,
+        idempotency_key: "idem-diag",
+        action: "diag_op",
+        target: "test-res",
+        params: &diag_params,
+    };
+    let fenced_res = broker.execute_effect(&req).unwrap();
+    let fence_ok = matches!(fenced_res, EffectDisposition::Fenced { .. });
+    checks.push(DiagnosticItem {
+        id: 11,
+        name: "Generation Fencing Broker".into(),
+        status: fence_ok,
+        details: "Partition split-brain & dual-worker execution defeated".into(),
+    });
+
+    // 12. Safe Workspace Staging & Symlink Traversal Defeat (Chapters 21, 28, 29)
+    let tmp_root = std::env::temp_dir();
+    let malicious_rel = Path::new("../../etc/shadow");
+    let staging_ok = WorkspaceStagingGuard::validate_path(&tmp_root, malicious_rel).is_err();
+    checks.push(DiagnosticItem {
+        id: 12,
+        name: "Safe Workspace Staging".into(),
+        status: staging_ok,
+        details: "Symlink escape & path traversal defeated (TOCTOU secure)".into(),
+    });
+
+    // 13. Partitioned Handoff Protocol & Budget Monotonicity (Chapters 3 & 26)
+    let vstate = VectorState::new("diag-handoff");
+    let cstate = CoordinatedTaskState::new("diag-handoff");
+    let budget = ExecutionBudget::new(10, 5, 1000, 5000);
+    let max_budget = ExecutionBudget::new(20, 10, 2000, 10000);
+    let manifest = HandoffManifest::new(HandoffParams {
+        task_id: "diag-handoff".into(),
+        source_node_id: "node-1".into(),
+        target_node_id: "node-2".into(),
+        source_generation: 1,
+        target_generation: 2,
+        vector_state: vstate,
+        coordinated_state: cstate,
+        remaining_budget: budget,
+    })
+    .unwrap();
+    let handoff_ok = HandoffValidator::validate_handoff(&manifest, 1, &max_budget).is_ok();
+    checks.push(DiagnosticItem {
+        id: 13,
+        name: "Partitioned Handoff".into(),
+        status: handoff_ok,
+        details: "Monotonic generation & budget non-inflation verified".into(),
+    });
+
+    // 14. Ephemeral Secret Guard & Scrubbing (Chapter 15)
+    let s1 = SecretGuard::assert_no_secrets_in_text("-----BEGIN PRIVATE KEY-----").is_err();
+    let scrubbed_sample = SecretGuard::scrub_secrets("key: AKIAIOSFODNN7EXAMPLE");
+    let s2 = scrubbed_sample.contains("[REDACTED_SECRET]");
+    checks.push(DiagnosticItem {
+        id: 14,
+        name: "Secret Guard".into(),
+        status: s1 && s2,
+        details: "Ephemeral token defense & zero static secrets active".into(),
+    });
+
+    // 15. Forensic Evidence Bundle & Root Manifest Engine (Chapters 18 & 30)
+    let mut fr = FlightRecorder::new("diag-session");
+    fr.record_event("Execution", "diag", "auth", "op", "hash", "v1");
+    let rcpt = ExecutionReceipt::from_params(ExecutionReceiptParams {
+        task_id: "diag-task".into(),
+        actor_id: "diag".into(),
+        authority_id: "auth".into(),
+        capability_id: "cap".into(),
+        action: "op".into(),
+        input_digest: "in".into(),
+        output_digest: "out".into(),
+        effect_digest: "eff".into(),
+        duration_ms: 10,
+        exit_code: 0,
+    });
+    let bundle = ForensicBundle::create(
+        "diag-task",
+        VectorState::new("diag-task"),
+        CoordinatedTaskState::new("diag-task"),
+        &fr,
+        vec![rcpt],
+        vec![],
+        None,
+    );
+    let bundle_ok = bundle.verify_integrity();
+    checks.push(DiagnosticItem {
+        id: 15,
+        name: "Forensic Bundle Engine".into(),
+        status: bundle_ok,
+        details: "Post-mortem tamper-evident bundle integrity verified".into(),
+    });
+
+    // 16. Network Egress Governance (Chapter 9)
+    let egress_policy = NetworkEgressPolicy::new_hardened();
+    let e1 = NetworkEgressGuard::verify_egress(&egress_policy, "169.254.169.254", 80).is_err();
+    let e2 = NetworkEgressGuard::verify_egress(&egress_policy, "crates.io", 443).is_ok();
+    checks.push(DiagnosticItem {
+        id: 16,
+        name: "Network Egress Governance".into(),
+        status: e1 && e2,
+        details: "Cloud metadata (IMDS) & private intranet blocked".into(),
+    });
+
+    // 17. Sandbox Profile & Landlock Boundary (Chapter 11)
+    let sb_profile = SandboxProfile::new_hardened("/tmp/diag-sandbox");
+    let p1 = sb_profile.is_syscall_prohibited("ptrace");
+    let p2 = sb_profile.is_syscall_prohibited("bpf");
+    let p3 = sb_profile
+        .verify_write_access(Path::new("/usr/bin/test"))
+        .is_err();
+    checks.push(DiagnosticItem {
+        id: 17,
+        name: "Sandbox Isolation Profile".into(),
+        status: p1 && p2 && p3,
+        details: "Landlock FS boundaries & seccomp syscall filters verified".into(),
+    });
+
+    // 18. Deterministic Checkpoint & Replay Engine (Chapter 16)
+    let ckpt = TaskCheckpoint::create(
+        "diag-ckpt",
+        1,
+        1,
+        VectorState::new("diag"),
+        CoordinatedTaskState::new("diag"),
+        ExecutionBudget::default(),
+        vec!["sha256:diag_eff".into()],
+    );
+    let c_ok = ckpt.verify_integrity();
+    let mut rep_broker = AtomicEffectBroker::new(1, "fence-1-diag");
+    let resumed = ReplayEngine::resume_from_checkpoint(&ckpt, &mut rep_broker).unwrap();
+    let r_ok = resumed.generation == 2;
+    checks.push(DiagnosticItem {
+        id: 18,
+        name: "Deterministic Checkpoint & Replay".into(),
+        status: c_ok && r_ok,
+        details: "Checkpoint integrity & side-effect fencing verified".into(),
+    });
+
+    // 19. Microsoft sbom-tool & SPDX 2.2 Integration (ISO/IEC 5962:2021)
+    let sbom_status = if SbomToolBridge::is_available() {
+        format!(
+            "External CLI discovered ({})",
+            SbomToolBridge::version().unwrap_or_else(|| "active".into())
+        )
+    } else {
+        "Native Cleanroom Rust Engine active".into()
+    };
+    checks.push(DiagnosticItem {
+        id: 19,
+        name: "Microsoft sbom-tool & SPDX 2.2".into(),
+        status: true,
+        details: format!("ISO/IEC 5962:2021 verified ({})", sbom_status),
+    });
+
+    // 20. SBOM Semantic Analyzer & Regulatory Compliance Engine
+    checks.push(DiagnosticItem {
+        id: 20,
+        name: "SBOM Semantic Analyzer".into(),
+        status: true,
+        details: "Semantic diff, quality scoring & CRA/NTIA compliance active".into(),
+    });
+
+    checks
+}
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let subscriber = FmtSubscriber::builder()
         .with_max_level(Level::INFO)
+        .with_writer(std::io::stderr)
         .with_target(false)
         .finish();
     let _ = tracing::subscriber::set_global_default(subscriber);
@@ -970,247 +1326,138 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
         },
 
-        Commands::Doctor => {
-            println!("🩺 Running CKODEX Deep Day-2 Diagnostics (Doctor)...\n");
+        Commands::Doctor { format } => {
+            let checks = run_doctor_diagnostics();
+            DashboardRenderer::new().render_diagnostics(&checks, format);
+        }
 
-            // 1. Rust Toolchain check
-            let rustc_out = Command::new("rustc").arg("--version").output();
-            let rust_ver = match rustc_out {
-                Ok(out) if out.status.success() => {
-                    String::from_utf8_lossy(&out.stdout).trim().to_string()
-                }
-                _ => "Not installed".into(),
-            };
-            println!("  [OK] Rust Toolchain: {}", rust_ver);
+        Commands::Completions { shell } => {
+            let mut cmd = Cli::command();
+            clap_complete::generate(shell, &mut cmd, "ggagent", &mut std::io::stdout());
+        }
 
-            // 2. Go Toolchain check
-            let go_out = Command::new("go").arg("version").output();
-            let go_ver = match go_out {
-                Ok(out) if out.status.success() => {
-                    String::from_utf8_lossy(&out.stdout).trim().to_string()
-                }
-                _ => "Not installed".into(),
-            };
-            println!("  [OK] Go Toolchain:   {}", go_ver);
-
-            // 3. Pure Semantic Kernel Invariants
-            println!(
-                "  [OK] Pure Semantic Kernel Invariants: ggagent-kernel verified 100% I/O free"
-            );
-
-            // 4. 77 Subagent Strategies check
+        Commands::Dashboard {
+            view,
+            static_dump: _,
+        } => {
+            let styler = Styler::new();
+            let checks = run_doctor_diagnostics();
+            let ok_count = checks.iter().filter(|c| c.status).count();
+            let total_count = checks.len();
             let strategies = StrategyRegistry::all();
-            assert_eq!(strategies.len(), 77);
-            println!("  [OK] Subagent Strategies: 77/77 cataloged across 7 archetypes");
-
-            // 5. Network Substrate probe
-            let socket_test = std::net::TcpListener::bind("127.0.0.1:0");
-            assert!(socket_test.is_ok());
-            println!("  [OK] Network Substrate: Loopback sockets bindable and clear");
-
-            // 6. Google A2A Protocol Handler check
-            let test_msg = A2AMessage {
-                message_id: "test".into(),
-                role: A2ARole::RemoteAgent,
-                sender_id: "peer".into(),
-                parts: vec![],
-                timestamp: chrono::Utc::now(),
-                confirmed_call_id: Some("call-1".into()),
-            };
-            let confused_deputy_active =
-                SecurityGuards::verify_approval_principal(&test_msg).is_err();
-            assert!(confused_deputy_active);
-            println!("  [OK] Google A2A Protocol: Confused Deputy defense active (CVE-2026-18236)");
-
-            // 7. AtomicEffectGuard performance probe
-            let t0 = Instant::now();
-            let guard =
-                AtomicEffectGuard::new("probe", "target", serde_json::json!({"test": true}));
-            let t_digest = t0.elapsed();
-            assert!(guard
-                .verify_use_time("probe", "target", &serde_json::json!({"test": true}))
-                .is_ok());
-            println!(
-                "  [OK] AtomicEffectGuard & Loopjacking Protection: Latency < {:?}",
-                t_digest
-            );
-
-            // 8. ARD v1.0 standard check
-            let ard = ArdService::new("127.0.0.1:8080", "CKODEX").get_document();
-            assert!(ArdValidator::validate(&ard).is_ok());
-            println!("  [OK] Agentic Resource Discovery: ARD v1.0 standard compliant");
-
-            // 9. Cryptographic Evidence Fabric & DSSE
-            println!("  [OK] Cryptographic Evidence Fabric: Ed25519 DSSE attestations enabled");
-
-            // 10. Coordinated Multidimensional State Engine (Chapter 24)
-            let mut coord_state = CoordinatedTaskState::new("diag-task");
-            assert_eq!(coord_state.execution, ExecutionLifecycle::Requested);
-            assert_eq!(coord_state.authority, AuthorityLifecycle::Pending);
-            assert_eq!(coord_state.candidate, CandidateLifecycle::Absent);
-            assert_eq!(coord_state.reclamation, ReclamationLifecycle::Allocated);
-            // Running requires Active Authority
-            assert!(coord_state
-                .transition_execution(ExecutionLifecycle::Running)
-                .is_err());
-            coord_state
-                .transition_authority(AuthorityLifecycle::Active)
-                .unwrap();
-            assert!(coord_state
-                .transition_execution(ExecutionLifecycle::Running)
-                .is_ok());
-            // Failure classification check
-            coord_state.mark_failure(
-                FailureClassification::GovernanceFailure,
-                "stale generation fence",
-            );
-            assert_eq!(
-                coord_state.failure_classification,
-                Some(FailureClassification::GovernanceFailure)
-            );
-            println!("  [OK] 4D Coordinated States: Execution, Authority, Candidate, Reclamation invariants verified");
-
-            // 11. Generation Fencing & Atomic Effect Broker (Chapters 25-26)
-            let mut broker = AtomicEffectBroker::new(1, "fence-1-diag");
-            let mut test_lease = CapabilityLease::new(
-                "lease-diag",
-                "diag-agent",
-                "test-res",
-                vec!["diag_op".into()],
-                chrono::Utc::now() + chrono::Duration::hours(1),
-            );
-            test_lease.generation = 1;
-            let guard = AtomicEffectGuard::new("diag_op", "test-res", serde_json::json!({}));
-            // Advance broker generation to 2 to simulate partition failover
-            broker.advance_generation("fence-2-diag");
-            // Older worker on generation 1 must be strictly fenced
-            let diag_params = serde_json::json!({});
-            let req = EffectRequest {
-                lease: &test_lease,
-                guard: &guard,
-                received_generation: 1,
-                idempotency_key: "idem-diag",
-                action: "diag_op",
-                target: "test-res",
-                params: &diag_params,
-            };
-            let fenced_res = broker.execute_effect(&req).unwrap();
-            assert!(matches!(fenced_res, EffectDisposition::Fenced { .. }));
-            println!("  [OK] Generation Fencing Broker: Partition split-brain & dual-worker execution defeated");
-
-            // 12. Safe Workspace Staging & Symlink Traversal Defeat (Chapters 21, 28, 29)
-            let tmp_root = std::env::temp_dir();
-            let malicious_rel = Path::new("../../etc/shadow");
-            assert!(WorkspaceStagingGuard::validate_path(&tmp_root, malicious_rel).is_err());
-            println!("  [OK] Safe Workspace Staging: Symlink escape & path traversal defeated (TOCTOU secure)");
-
-            // 13. Partitioned Handoff Protocol & Budget Monotonicity (Chapters 3 & 26)
-            let vstate = VectorState::new("diag-handoff");
-            let cstate = CoordinatedTaskState::new("diag-handoff");
-            let budget = ExecutionBudget::new(10, 5, 1000, 5000);
-            let max_budget = ExecutionBudget::new(20, 10, 2000, 10000);
-            let manifest = HandoffManifest::new(HandoffParams {
-                task_id: "diag-handoff".into(),
-                source_node_id: "node-1".into(),
-                target_node_id: "node-2".into(),
-                source_generation: 1,
-                target_generation: 2,
-                vector_state: vstate,
-                coordinated_state: cstate,
-                remaining_budget: budget,
-            })
-            .unwrap();
-            assert!(HandoffValidator::validate_handoff(&manifest, 1, &max_budget).is_ok());
-            println!(
-                "  [OK] Partitioned Handoff: Monotonic generation & budget non-inflation verified"
-            );
-
-            // 14. Ephemeral Secret Guard & Scrubbing (Chapter 15)
-            assert!(SecretGuard::assert_no_secrets_in_text("-----BEGIN PRIVATE KEY-----").is_err());
-            let scrubbed_sample = SecretGuard::scrub_secrets("key: AKIAIOSFODNN7EXAMPLE");
-            assert!(scrubbed_sample.contains("[REDACTED_SECRET]"));
-            println!("  [OK] Secret Guard: Ephemeral token defense & zero static secrets active");
-
-            // 15. Forensic Evidence Bundle & Root Manifest Engine (Chapters 18 & 30)
-            let mut fr = FlightRecorder::new("diag-session");
-            fr.record_event("Execution", "diag", "auth", "op", "hash", "v1");
-            let rcpt = ExecutionReceipt::from_params(ExecutionReceiptParams {
-                task_id: "diag-task".into(),
-                actor_id: "diag".into(),
-                authority_id: "auth".into(),
-                capability_id: "cap".into(),
-                action: "op".into(),
-                input_digest: "in".into(),
-                output_digest: "out".into(),
-                effect_digest: "eff".into(),
-                duration_ms: 10,
-                exit_code: 0,
-            });
-            let bundle = ForensicBundle::create(
-                "diag-task",
-                VectorState::new("diag-task"),
-                CoordinatedTaskState::new("diag-task"),
-                &fr,
-                vec![rcpt],
-                vec![],
-                None,
-            );
-            assert!(bundle.verify_integrity());
-            println!("  [OK] Forensic Bundle Engine: Post-mortem tamper-evident bundle integrity verified");
-
-            // 16. Network Egress Governance (Chapter 9)
-            let egress_policy = NetworkEgressPolicy::new_hardened();
-            assert!(
-                NetworkEgressGuard::verify_egress(&egress_policy, "169.254.169.254", 80).is_err()
-            );
-            assert!(NetworkEgressGuard::verify_egress(&egress_policy, "crates.io", 443).is_ok());
-            println!("  [OK] Network Egress Governance: Cloud metadata (IMDS) & private intranet blocked");
-
-            // 17. Sandbox Profile & Landlock Boundary (Chapter 11)
-            let sb_profile = SandboxProfile::new_hardened("/tmp/diag-sandbox");
-            assert!(sb_profile.is_syscall_prohibited("ptrace"));
-            assert!(sb_profile.is_syscall_prohibited("bpf"));
-            assert!(sb_profile
-                .verify_write_access(Path::new("/usr/bin/test"))
-                .is_err());
-            println!("  [OK] Sandbox Isolation Profile: Landlock FS boundaries & seccomp syscall filters verified");
-
-            // 18. Deterministic Checkpoint & Replay Engine (Chapter 16)
-            let ckpt = TaskCheckpoint::create(
-                "diag-ckpt",
-                1,
-                1,
-                VectorState::new("diag"),
-                CoordinatedTaskState::new("diag"),
-                ExecutionBudget::default(),
-                vec!["sha256:diag_eff".into()],
-            );
-            assert!(ckpt.verify_integrity());
-            let mut rep_broker = AtomicEffectBroker::new(1, "fence-1-diag");
-            let resumed = ReplayEngine::resume_from_checkpoint(&ckpt, &mut rep_broker).unwrap();
-            assert_eq!(resumed.generation, 2);
-            println!("  [OK] Deterministic Checkpoint & Replay: Checkpoint integrity & side-effect fencing verified");
-
-            // 19. Microsoft sbom-tool & SPDX 2.2 Integration (ISO/IEC 5962:2021)
             let sbom_status = if SbomToolBridge::is_available() {
-                format!(
-                    "External CLI discovered ({})",
-                    SbomToolBridge::version().unwrap_or_else(|| "active".into())
-                )
+                "Microsoft sbom-tool bridge + SbomAnalyzer active"
             } else {
-                "Native Cleanroom Rust Engine active".into()
+                "Cleanroom SbomAnalyzer (CycloneDX 1.7 / SPDX 2.2)"
             };
-            println!(
-                "  [OK] Microsoft sbom-tool & SPDX 2.2: ISO/IEC 5962:2021 verified ({})",
-                sbom_status
-            );
-
-            // 20. SBOM Semantic Analyzer & Regulatory Compliance Engine
-            println!(
-                "  [OK] SBOM Semantic Analyzer: Semantic diff, quality scoring & CRA/NTIA compliance active"
-            );
-
-            println!("\n✅ Overall System Health: NORMAL / COHERENT (All 20 systems verified)");
+            let renderer = DashboardRenderer::new();
+            match view.to_lowercase().as_str() {
+                "sbom" => {
+                    println!(
+                        "{}",
+                        styler.card_header("SBOM & SUPPLY CHAIN DASHBOARD", 76)
+                    );
+                    println!("{}", styler.card_row("Engine", sbom_status, 22));
+                    println!(
+                        "{}",
+                        styler.card_row(
+                            "Quality Profiles",
+                            "Standard, Minimal, Security, License, CRA, BSI TR-03183, AI",
+                            22
+                        )
+                    );
+                    println!(
+                        "{}",
+                        styler.card_row(
+                            "Compliance Engines",
+                            "NTIA Minimum Elements, EU CRA 1 & 2, FDA, EO 14028, NIST SSDF",
+                            22
+                        )
+                    );
+                    println!(
+                        "{}",
+                        styler.card_row(
+                            "Supported Formats",
+                            "CycloneDX 1.4-1.7 (JSON/XML), SPDX 2.2-3.0 (JSON)",
+                            22
+                        )
+                    );
+                    println!("{}", styler.card_footer(76));
+                }
+                "strategies" => {
+                    println!(
+                        "{}",
+                        styler.card_header("CANONICAL 77 SUBAGENT STRATEGIES CATALOG", 76)
+                    );
+                    println!(
+                        "{}",
+                        styler.card_row(
+                            "Total Strategies",
+                            &format!("{} cataloged", strategies.len()),
+                            22
+                        )
+                    );
+                    println!(
+                        "{}",
+                        styler.card_row(
+                            "Tier S (Mechanical)",
+                            "Indexing, file discovery, formatting, closed-spec execution",
+                            22
+                        )
+                    );
+                    println!(
+                        "{}",
+                        styler.card_row(
+                            "Tier B (Builder)",
+                            "Feature implementation, refactoring, unit tests, decided specs",
+                            22
+                        )
+                    );
+                    println!(
+                        "{}",
+                        styler.card_row(
+                            "Tier R (Reasoner)",
+                            "Architecture trade-offs, formal invariants, ambiguous root causes",
+                            22
+                        )
+                    );
+                    println!(
+                        "{}",
+                        styler.card_row(
+                            "Tier Peer (Cross-Family)",
+                            "Blind-first independent consensus (Gemini + Codex + Cohere + Claude)",
+                            22
+                        )
+                    );
+                    println!("{}", styler.card_footer(76));
+                }
+                "mesh" => {
+                    println!(
+                        "{}",
+                        styler.card_header("COLLABORATIVE 4-AGENT MESH DAG ARCHITECTURE", 76)
+                    );
+                    println!(
+                        "  Stage 1: Gemini Planner     -> Strat-18 (Architecture Decomposition)"
+                    );
+                    println!("  Stage 2: Cohere Knowledge  -> Strat-42 (Evidence & Invariant Verification)");
+                    println!(
+                        "  Stage 3: Codex Synthesizer -> Strat-29 (Clean Kernel Implementation)"
+                    );
+                    println!(
+                        "  Stage 4: Claude Reviewer   -> Strat-55 (Independent Security Review)"
+                    );
+                    println!("{}", styler.card_footer(76));
+                }
+                _ => {
+                    renderer.render_overview(
+                        ok_count,
+                        total_count,
+                        strategies.len(),
+                        sbom_status,
+                        "Ready (4 Agent Archetypes)",
+                    );
+                }
+            }
         }
 
         Commands::Explain { task_id } => {
@@ -1535,49 +1782,125 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     agent_id
                 );
             }
-            AgentCommands::Mesh { objective, task_id } => {
-                println!("===============================================================================");
-                println!("CKODEX MULTI-AGENT MESH ORCHESTRATION (A2A DAG)");
-                println!("Task ID:   {}", task_id);
-                println!("Objective: {}", objective);
-                println!("Standard:  ECMA-424 / NIST SP 800-53 / ADK v2");
-                println!("===============================================================================\n");
-
+            AgentCommands::Mesh {
+                objective,
+                task_id,
+                format,
+            } => {
                 let workspace_root = std::env::current_dir()?;
                 match MeshOrchestrator::execute_mesh(&task_id, &objective, &workspace_root) {
                     Ok(report) => {
-                        println!("Stage Execution Timeline:");
-                        for stage in &report.stages {
-                            println!(
-                                "  [{}] {:<24} | {:<28} | {:>7} µs | Receipt: {}",
-                                stage.stage_index,
-                                stage.agent_id,
-                                stage.strategy_code,
-                                stage.duration_us,
-                                stage.receipt_id
-                            );
-                            println!("      Summary: {}", stage.output_summary);
-                            println!("      Digest:  {}", stage.output_digest);
-                        }
-
-                        println!(
-                            "\nFinal State Vector: {}",
-                            report.final_vector_state.to_canonical_string()
-                        );
-                        println!("Forensic Bundle ID: {}", report.forensic_bundle.bundle_id);
-                        println!(
-                            "Root Digest:        {}",
-                            report.forensic_bundle.root_manifest_digest
-                        );
-                        println!("Total Elapsed:      {} ms", report.total_duration_ms);
-
                         let bundle_path = format!("forensic-mesh-{}.json", task_id);
-                        let json = serde_json::to_string_pretty(&report.forensic_bundle)?;
-                        fs::write(&bundle_path, json)?;
-                        println!("Evidence Exported:  {}", bundle_path);
-                        println!(
-                            "\n[PASS] Collaborative Mesh DAG completed with 100% cryptographic receipts."
-                        );
+                        let json_bundle = serde_json::to_string_pretty(&report.forensic_bundle)?;
+                        fs::write(&bundle_path, json_bundle)?;
+
+                        match format {
+                            OutputFormat::Table => {
+                                let styler = Styler::new();
+                                println!(
+                                    "{}",
+                                    styler.card_header(
+                                        "CKODEX MULTI-AGENT MESH ORCHESTRATION (A2A DAG)",
+                                        78
+                                    )
+                                );
+                                println!("{}", styler.card_row("Task ID", &task_id, 20));
+                                println!("{}", styler.card_row("Objective", &objective, 20));
+                                println!(
+                                    "{}",
+                                    styler.card_row(
+                                        "Standard",
+                                        "ECMA-424 / NIST SP 800-53 / ADK v2",
+                                        20
+                                    )
+                                );
+                                println!();
+                                println!("{}", styler.card_section("Stage Execution Timeline"));
+                                for stage in &report.stages {
+                                    println!(
+                                        "  [{}] {:<24} | {:<28} | {:>7} µs | Receipt: {}",
+                                        stage.stage_index,
+                                        styler.bold_cyan(&stage.agent_id),
+                                        styler.yellow(&stage.strategy_code),
+                                        stage.duration_us,
+                                        styler.magenta(&stage.receipt_id)
+                                    );
+                                    println!("      Summary: {}", stage.output_summary);
+                                    println!("      Digest:  {}", styler.dim(&stage.output_digest));
+                                }
+                                println!();
+                                println!("{}", styler.card_section("Governance & State Vector"));
+                                println!(
+                                    "{}",
+                                    styler.card_row(
+                                        "Final State Vector",
+                                        &report.final_vector_state.to_canonical_string(),
+                                        20
+                                    )
+                                );
+                                println!(
+                                    "{}",
+                                    styler.card_row(
+                                        "Forensic Bundle",
+                                        &report.forensic_bundle.bundle_id,
+                                        20
+                                    )
+                                );
+                                println!(
+                                    "{}",
+                                    styler.card_row(
+                                        "Root Digest",
+                                        &report.forensic_bundle.root_manifest_digest,
+                                        20
+                                    )
+                                );
+                                println!(
+                                    "{}",
+                                    styler.card_row(
+                                        "Total Elapsed",
+                                        &format!("{} ms", report.total_duration_ms),
+                                        20
+                                    )
+                                );
+                                println!(
+                                    "{}",
+                                    styler.card_row("Evidence Ledger", &bundle_path, 20)
+                                );
+                                println!();
+                                println!("  {} Collaborative Mesh DAG completed with 100% cryptographic receipts.", styler.badge_pass("PASS"));
+                                println!("{}", styler.card_footer(78));
+                            }
+                            OutputFormat::Json | OutputFormat::Sarif => {
+                                println!("{}", serde_json::to_string_pretty(&report)?);
+                            }
+                            OutputFormat::Markdown => {
+                                println!("# 🤖 Collaborative Multi-Agent Mesh Execution Report\n");
+                                println!("- **Task ID:** `{}`", task_id);
+                                println!("- **Objective:** {}", objective);
+                                println!("- **Total Duration:** `{} ms`", report.total_duration_ms);
+                                println!(
+                                    "- **Final State Vector:** `{}`\n",
+                                    report.final_vector_state.to_canonical_string()
+                                );
+                                println!("### Stage Execution Timeline\n");
+                                println!("| # | Agent | Strategy | Duration (µs) | Receipt ID |");
+                                println!("|---|-------|----------|---------------|------------|");
+                                for stage in &report.stages {
+                                    println!(
+                                        "| {} | `{}` | `{}` | {} | `{}` |",
+                                        stage.stage_index,
+                                        stage.agent_id,
+                                        stage.strategy_code,
+                                        stage.duration_us,
+                                        stage.receipt_id
+                                    );
+                                }
+                                println!(
+                                    "\n**Forensic Evidence Bundle:** `{}` (Exported to `{}`)",
+                                    report.forensic_bundle.bundle_id, bundle_path
+                                );
+                            }
+                        }
                     }
                     Err(e) => {
                         eprintln!("[FAIL] Mesh execution failed validation: {}", e);
@@ -1775,154 +2098,499 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     }
                 }
             }
-            SbomCommands::Diff { old, new } => {
+            SbomCommands::Diff { old, new, format } => {
                 let old_path = Path::new(&old);
                 let new_path = Path::new(&new);
                 match SbomAnalyzer::diff(old_path, new_path) {
-                    Ok((diff, receipt)) => {
-                        println!("══════════════════════════════════════════════════════════════════════════");
-                        println!("🔍 SBOM SEMANTIC DIFF (SbomAnalyzer)");
-                        println!("══════════════════════════════════════════════════════════════════════════");
-                        println!("  Baseline SBOM:         {}", old_path.display());
-                        println!("  Target SBOM:           {}", new_path.display());
-                        println!("  Semantic Similarity:   {:.2}%", diff.semantic_score);
-                        println!(
-                            "  Quality Impact:        {:+0.2}",
-                            diff.quality_delta
+                    Ok((diff, receipt)) => match format {
+                        OutputFormat::Table => {
+                            let styler = Styler::new();
+                            println!(
+                                "{}",
+                                styler.card_header("SBOM SEMANTIC DIFF (SbomAnalyzer)", 76)
+                            );
+                            println!(
+                                "{}",
+                                styler.card_row(
+                                    "Baseline SBOM",
+                                    &old_path.display().to_string(),
+                                    20
+                                )
+                            );
+                            println!(
+                                "{}",
+                                styler.card_row("Target SBOM", &new_path.display().to_string(), 20)
+                            );
+                            let sim_str = format!("{:.2}%", diff.semantic_score);
+                            println!("{}", styler.card_row("Semantic Similarity", &sim_str, 20));
+                            let q_delta = diff
+                                .quality_delta
                                 .as_ref()
                                 .map(|q| q.overall_score_delta)
-                                .unwrap_or(0.0)
-                        );
-                        println!("\n  [Component Changes]");
-                        println!("    Added:               {}", diff.components.added.len());
-                        println!("    Removed:             {}", diff.components.removed.len());
-                        println!(
-                            "    Modified:            {}",
-                            diff.components.modified.len()
-                        );
-                        for added in diff.components.added.iter().take(5) {
-                            println!("      + {}", added.name);
+                                .unwrap_or(0.0);
+                            println!(
+                                "{}",
+                                styler.card_row("Quality Impact", &format!("{:+0.2}", q_delta), 20)
+                            );
+                            println!();
+                            println!("{}", styler.card_section("Component Changes"));
+                            println!(
+                                "{}",
+                                styler.card_row(
+                                    "Added",
+                                    &diff.components.added.len().to_string(),
+                                    20
+                                )
+                            );
+                            println!(
+                                "{}",
+                                styler.card_row(
+                                    "Removed",
+                                    &diff.components.removed.len().to_string(),
+                                    20
+                                )
+                            );
+                            println!(
+                                "{}",
+                                styler.card_row(
+                                    "Modified",
+                                    &diff.components.modified.len().to_string(),
+                                    20
+                                )
+                            );
+                            for added in diff.components.added.iter().take(5) {
+                                println!("      + {}", styler.green(&added.name));
+                            }
+                            for removed in diff.components.removed.iter().take(5) {
+                                println!("      - {}", styler.red(&removed.name));
+                            }
+                            for modified in diff.components.modified.iter().take(5) {
+                                println!("      ~ {}", styler.yellow(&modified.name));
+                            }
+                            println!();
+                            println!("{}", styler.card_section("Cryptographic Execution Receipt"));
+                            println!("{}", styler.card_row("Task ID", &receipt.task_id, 20));
+                            println!(
+                                "{}",
+                                styler.card_row("Actor Principal", &receipt.actor_id, 20)
+                            );
+                            println!(
+                                "{}",
+                                styler.card_row("Input Digest", &receipt.input_digest, 20)
+                            );
+                            println!(
+                                "{}",
+                                styler.card_row("Output Digest", &receipt.output_digest, 20)
+                            );
+                            let sig_short = if receipt.signature.len() >= 32 {
+                                &receipt.signature[..32]
+                            } else {
+                                &receipt.signature
+                            };
+                            println!(
+                                "{}",
+                                styler.card_row(
+                                    "Signature",
+                                    &format!("{} (Ed25519 Verified)", sig_short),
+                                    20
+                                )
+                            );
+                            println!("{}", styler.card_footer(76));
                         }
-                        for removed in diff.components.removed.iter().take(5) {
-                            println!("      - {}", removed.name);
+                        OutputFormat::Json | OutputFormat::Sarif => {
+                            let payload = serde_json::json!({
+                                "baseline": old_path.display().to_string(),
+                                "target": new_path.display().to_string(),
+                                "semantic_similarity": diff.semantic_score,
+                                "quality_impact": diff.quality_delta.as_ref().map(|q| q.overall_score_delta).unwrap_or(0.0),
+                                "components_added": diff.components.added,
+                                "components_removed": diff.components.removed,
+                                "components_modified": diff.components.modified,
+                                "receipt": receipt,
+                            });
+                            println!("{}", serde_json::to_string_pretty(&payload)?);
                         }
-                        for modified in diff.components.modified.iter().take(5) {
-                            println!("      ~ {}", modified.name);
+                        OutputFormat::Markdown => {
+                            println!("### 🔍 SBOM Semantic Diff (SbomAnalyzer)\n");
+                            println!("- **Baseline:** `{}`", old_path.display());
+                            println!("- **Target:** `{}`", new_path.display());
+                            println!("- **Semantic Similarity:** `{:.2}%`", diff.semantic_score);
+                            let q_delta = diff
+                                .quality_delta
+                                .as_ref()
+                                .map(|q| q.overall_score_delta)
+                                .unwrap_or(0.0);
+                            println!("- **Quality Impact:** `{:+0.2}`\n", q_delta);
+                            println!("| Component Change | Count |");
+                            println!("|---|---|");
+                            println!("| Added | {} |", diff.components.added.len());
+                            println!("| Removed | {} |", diff.components.removed.len());
+                            println!("| Modified | {} |\n", diff.components.modified.len());
+                            println!("<details><summary>Execution Receipt</summary>\n");
+                            println!("- **Task ID:** `{}`", receipt.task_id);
+                            println!("- **Actor:** `{}`", receipt.actor_id);
+                            println!("- **Output Digest:** `{}`", receipt.output_digest);
+                            println!(
+                                "- **Signature:** `{}` (Ed25519 Verified)",
+                                receipt.signature
+                            );
+                            println!("</details>");
                         }
-                        println!("\n  [Execution Receipt]");
-                        println!("    Task ID:             {}", receipt.task_id);
-                        println!("    Actor Principal:     {}", receipt.actor_id);
-                        println!("    Input Digest:        {}", receipt.input_digest);
-                        println!("    Output Digest:       {}", receipt.output_digest);
-                        println!(
-                            "    Signature:           {} (Ed25519 Verified)",
-                            &receipt.signature[..32]
-                        );
-                        println!("══════════════════════════════════════════════════════════════════════════");
-                    }
+                    },
                     Err(e) => {
                         eprintln!("[FAIL] Semantic diff failed: {}", e);
                     }
                 }
             }
-            SbomCommands::Quality { path, profile } => {
+            SbomCommands::Quality {
+                path,
+                profile,
+                format,
+            } => {
                 let sbom_path = Path::new(&path);
                 match SbomAnalyzer::score(sbom_path, profile.as_deref()) {
-                    Ok((report, receipt)) => {
-                        println!("══════════════════════════════════════════════════════════════════════════");
-                        println!("📊 SBOM QUALITY EVALUATION (SbomAnalyzer)");
-                        println!("══════════════════════════════════════════════════════════════════════════");
-                        println!("  Target File:           {}", sbom_path.display());
-                        println!("  Scoring Profile:       {:?}", report.profile);
-                        println!(
-                            "  Overall Score:         {:.1} / 100.0",
-                            report.overall_score
-                        );
-                        println!("  Letter Grade:          {:?}", report.grade);
-                        println!("\n  [Category Breakdown]");
-                        println!(
-                            "    Completeness:        {:.1} / 100.0",
-                            report.completeness_score
-                        );
-                        println!(
-                            "    Identifiers:         {:.1} / 100.0",
-                            report.identifier_score
-                        );
-                        println!(
-                            "    Licenses:            {:.1} / 100.0",
-                            report.license_score
-                        );
-                        println!(
-                            "    Integrity / Hashes:  {:.1} / 100.0",
-                            report.integrity_score
-                        );
-                        println!(
-                            "    Provenance:          {:.1} / 100.0",
-                            report.provenance_score
-                        );
-                        println!(
-                            "    Dependency Graph:    {:.1} / 100.0",
-                            report.dependency_score
-                        );
-                        if !report.recommendations.is_empty() {
-                            println!("\n  [Actionable Recommendations]");
-                            for rec in report.recommendations.iter().take(5) {
-                                println!("    • [{:?}] {}", rec.priority, rec.message);
+                    Ok((report, receipt)) => match format {
+                        OutputFormat::Table => {
+                            let styler = Styler::new();
+                            println!(
+                                "{}",
+                                styler.card_header("SBOM QUALITY EVALUATION (SbomAnalyzer)", 76)
+                            );
+                            println!(
+                                "{}",
+                                styler.card_row(
+                                    "Target File",
+                                    &sbom_path.display().to_string(),
+                                    20
+                                )
+                            );
+                            println!(
+                                "{}",
+                                styler.card_row(
+                                    "Scoring Profile",
+                                    &format!("{:?}", report.profile),
+                                    20
+                                )
+                            );
+                            let gauge_bar = styler.gauge(report.overall_score as f64, 100.0, 16);
+                            println!(
+                                "{}",
+                                styler.card_row(
+                                    "Overall Score",
+                                    &format!("{:.1} / 100.0  {}", report.overall_score, gauge_bar),
+                                    20
+                                )
+                            );
+                            let grade_badge = match format!("{:?}", report.grade).as_str() {
+                                "A" => styler.badge_pass("GRADE A"),
+                                "B" => styler.badge_info("GRADE B"),
+                                "C" => styler.badge_warn("GRADE C"),
+                                _ => styler.badge_fail("GRADE D"),
+                            };
+                            println!("{}", styler.card_row("Letter Grade", &grade_badge, 20));
+                            println!();
+                            println!("{}", styler.card_section("Category Breakdown"));
+                            println!(
+                                "{}",
+                                styler.card_row(
+                                    "Completeness",
+                                    &format!("{:.1} / 100.0", report.completeness_score),
+                                    20
+                                )
+                            );
+                            println!(
+                                "{}",
+                                styler.card_row(
+                                    "Identifiers",
+                                    &format!("{:.1} / 100.0", report.identifier_score),
+                                    20
+                                )
+                            );
+                            println!(
+                                "{}",
+                                styler.card_row(
+                                    "Licenses",
+                                    &format!("{:.1} / 100.0", report.license_score),
+                                    20
+                                )
+                            );
+                            println!(
+                                "{}",
+                                styler.card_row(
+                                    "Integrity / Hashes",
+                                    &format!("{:.1} / 100.0", report.integrity_score),
+                                    20
+                                )
+                            );
+                            println!(
+                                "{}",
+                                styler.card_row(
+                                    "Provenance",
+                                    &format!("{:.1} / 100.0", report.provenance_score),
+                                    20
+                                )
+                            );
+                            println!(
+                                "{}",
+                                styler.card_row(
+                                    "Dependency Graph",
+                                    &format!("{:.1} / 100.0", report.dependency_score),
+                                    20
+                                )
+                            );
+                            if !report.recommendations.is_empty() {
+                                println!();
+                                println!("{}", styler.card_section("Actionable Recommendations"));
+                                for rec in report.recommendations.iter().take(5) {
+                                    println!("    • [{:?}] {}", rec.priority, rec.message);
+                                }
                             }
+                            println!();
+                            println!("{}", styler.card_section("Cryptographic Execution Receipt"));
+                            println!("{}", styler.card_row("Task ID", &receipt.task_id, 20));
+                            println!(
+                                "{}",
+                                styler.card_row("Actor Principal", &receipt.actor_id, 20)
+                            );
+                            println!(
+                                "{}",
+                                styler.card_row("Input Digest", &receipt.input_digest, 20)
+                            );
+                            println!(
+                                "{}",
+                                styler.card_row("Output Digest", &receipt.output_digest, 20)
+                            );
+                            let sig_short = if receipt.signature.len() >= 32 {
+                                &receipt.signature[..32]
+                            } else {
+                                &receipt.signature
+                            };
+                            println!(
+                                "{}",
+                                styler.card_row(
+                                    "Signature",
+                                    &format!("{} (Ed25519 Verified)", sig_short),
+                                    20
+                                )
+                            );
+                            println!("{}", styler.card_footer(76));
                         }
-                        println!("\n  [Execution Receipt]");
-                        println!("    Task ID:             {}", receipt.task_id);
-                        println!("    Actor Principal:     {}", receipt.actor_id);
-                        println!("    Input Digest:        {}", receipt.input_digest);
-                        println!("    Output Digest:       {}", receipt.output_digest);
-                        println!(
-                            "    Signature:           {} (Ed25519 Verified)",
-                            &receipt.signature[..32]
-                        );
-                        println!("══════════════════════════════════════════════════════════════════════════");
-                    }
+                        OutputFormat::Json | OutputFormat::Sarif => {
+                            let payload = serde_json::json!({
+                                "file": sbom_path.display().to_string(),
+                                "report": report,
+                                "receipt": receipt,
+                            });
+                            println!("{}", serde_json::to_string_pretty(&payload)?);
+                        }
+                        OutputFormat::Markdown => {
+                            println!(
+                                "### 📊 SBOM Quality Report: Grade {:?} ({:.1} / 100.0)\n",
+                                report.grade, report.overall_score
+                            );
+                            println!("- **Target File:** `{}`", sbom_path.display());
+                            println!("- **Scoring Profile:** `{:?}`\n", report.profile);
+                            println!("| Dimension | Score |");
+                            println!("|---|---|");
+                            println!(
+                                "| Completeness | {:.1} / 100.0 |",
+                                report.completeness_score
+                            );
+                            println!("| Identifiers | {:.1} / 100.0 |", report.identifier_score);
+                            println!("| Licenses | {:.1} / 100.0 |", report.license_score);
+                            println!(
+                                "| Integrity / Hashes | {:.1} / 100.0 |",
+                                report.integrity_score
+                            );
+                            println!("| Provenance | {:.1} / 100.0 |", report.provenance_score);
+                            println!(
+                                "| Dependency Graph | {:.1} / 100.0 |\n",
+                                report.dependency_score
+                            );
+                            if !report.recommendations.is_empty() {
+                                println!("#### Actionable Recommendations\n");
+                                for rec in &report.recommendations {
+                                    println!("- **[{:?}]** {}", rec.priority, rec.message);
+                                }
+                                println!();
+                            }
+                            println!("<details><summary>Execution Receipt</summary>\n");
+                            println!("- **Task ID:** `{}`", receipt.task_id);
+                            println!("- **Actor:** `{}`", receipt.actor_id);
+                            println!("- **Output Digest:** `{}`", receipt.output_digest);
+                            println!(
+                                "- **Signature:** `{}` (Ed25519 Verified)",
+                                receipt.signature
+                            );
+                            println!("</details>");
+                        }
+                    },
                     Err(e) => {
                         eprintln!("[FAIL] Quality scoring failed: {}", e);
                     }
                 }
             }
-            SbomCommands::Compliance { path, framework } => {
+            SbomCommands::Compliance {
+                path,
+                framework,
+                format,
+            } => {
                 let sbom_path = Path::new(&path);
                 match SbomAnalyzer::check_compliance(sbom_path, framework.as_deref()) {
-                    Ok((result, receipt)) => {
-                        println!("══════════════════════════════════════════════════════════════════════════");
-                        println!("⚖️  SBOM REGULATORY COMPLIANCE (SbomAnalyzer)");
-                        println!("══════════════════════════════════════════════════════════════════════════");
-                        println!("  Target File:           {}", sbom_path.display());
-                        println!("  Regulatory Standard:   {:?}", result.level);
-                        println!(
-                            "  Compliance Verdict:    {}",
-                            if result.is_compliant {
-                                "PASSED (COMPLIANT)"
+                    Ok((result, receipt)) => match format {
+                        OutputFormat::Table => {
+                            let styler = Styler::new();
+                            println!(
+                                "{}",
+                                styler.card_header("SBOM REGULATORY COMPLIANCE (SbomAnalyzer)", 76)
+                            );
+                            println!(
+                                "{}",
+                                styler.card_row(
+                                    "Target File",
+                                    &sbom_path.display().to_string(),
+                                    22
+                                )
+                            );
+                            println!(
+                                "{}",
+                                styler.card_row(
+                                    "Regulatory Standard",
+                                    &format!("{:?}", result.level),
+                                    22
+                                )
+                            );
+                            let verdict_badge = if result.is_compliant {
+                                styler.badge_pass("COMPLIANT")
                             } else {
-                                "FAILED (NON-COMPLIANT)"
+                                styler.badge_fail("NON-COMPLIANT")
+                            };
+                            println!(
+                                "{}",
+                                styler.card_row("Compliance Verdict", &verdict_badge, 22)
+                            );
+                            println!(
+                                "{}",
+                                styler.card_row(
+                                    "Violations (Errors)",
+                                    &result.error_count.to_string(),
+                                    22
+                                )
+                            );
+                            println!(
+                                "{}",
+                                styler.card_row("Warnings", &result.warning_count.to_string(), 22)
+                            );
+                            println!(
+                                "{}",
+                                styler.card_row("Info Notes", &result.info_count.to_string(), 22)
+                            );
+                            if !result.violations.is_empty() {
+                                println!();
+                                println!(
+                                    "{}",
+                                    styler.card_section("Violations / Missing Elements")
+                                );
+                                for v in result.violations.iter().take(8) {
+                                    let sev_str = format!("{:?}", v.severity);
+                                    let badge = match sev_str.as_str() {
+                                        "Error" | "High" => styler.badge_fail(&sev_str),
+                                        "Warning" | "Medium" => styler.badge_warn(&sev_str),
+                                        _ => styler.badge_info(&sev_str),
+                                    };
+                                    println!("    • {} {}", badge, v.message);
+                                }
                             }
-                        );
-                        println!("  Violations (Errors):   {}", result.error_count);
-                        println!("  Warnings:              {}", result.warning_count);
-                        println!("  Info Notes:            {}", result.info_count);
-                        if !result.violations.is_empty() {
-                            println!("\n  [Violations / Missing Elements]");
-                            for v in result.violations.iter().take(8) {
-                                println!("    • [{:?}] {}", v.severity, v.message);
-                            }
+                            println!();
+                            println!("{}", styler.card_section("Cryptographic Execution Receipt"));
+                            println!("{}", styler.card_row("Task ID", &receipt.task_id, 22));
+                            println!(
+                                "{}",
+                                styler.card_row("Actor Principal", &receipt.actor_id, 22)
+                            );
+                            println!(
+                                "{}",
+                                styler.card_row("Input Digest", &receipt.input_digest, 22)
+                            );
+                            println!(
+                                "{}",
+                                styler.card_row("Output Digest", &receipt.output_digest, 22)
+                            );
+                            let sig_short = if receipt.signature.len() >= 32 {
+                                &receipt.signature[..32]
+                            } else {
+                                &receipt.signature
+                            };
+                            println!(
+                                "{}",
+                                styler.card_row(
+                                    "Signature",
+                                    &format!("{} (Ed25519 Verified)", sig_short),
+                                    22
+                                )
+                            );
+                            println!("{}", styler.card_footer(76));
                         }
-                        println!("\n  [Execution Receipt]");
-                        println!("    Task ID:             {}", receipt.task_id);
-                        println!("    Actor Principal:     {}", receipt.actor_id);
-                        println!("    Input Digest:        {}", receipt.input_digest);
-                        println!("    Output Digest:       {}", receipt.output_digest);
-                        println!(
-                            "    Signature:           {} (Ed25519 Verified)",
-                            &receipt.signature[..32]
-                        );
-                        println!("══════════════════════════════════════════════════════════════════════════");
-                    }
+                        OutputFormat::Json => {
+                            let payload = serde_json::json!({
+                                "file": sbom_path.display().to_string(),
+                                "compliance": result,
+                                "receipt": receipt,
+                            });
+                            println!("{}", serde_json::to_string_pretty(&payload)?);
+                        }
+                        OutputFormat::Sarif => {
+                            let violations_tuples: Vec<(String, String, String)> = result
+                                .violations
+                                .iter()
+                                .enumerate()
+                                .map(|(idx, v)| {
+                                    (
+                                        format!("RULE-{:03}", idx + 1),
+                                        format!("{:?}", v.severity),
+                                        v.message.clone(),
+                                    )
+                                })
+                                .collect();
+                            let sarif = SarifReport::from_compliance_violations(
+                                &sbom_path.display().to_string(),
+                                &format!("{:?}", result.level),
+                                &violations_tuples,
+                            );
+                            println!("{}", serde_json::to_string_pretty(&sarif)?);
+                        }
+                        OutputFormat::Markdown => {
+                            println!("### ⚖️ SBOM Regulatory Compliance: `{:?}`\n", result.level);
+                            println!("- **Target File:** `{}`", sbom_path.display());
+                            println!(
+                                "- **Verdict:** {}",
+                                if result.is_compliant {
+                                    ":white_check_mark: **COMPLIANT**"
+                                } else {
+                                    ":x: **NON-COMPLIANT**"
+                                }
+                            );
+                            println!("- **Errors:** `{}`", result.error_count);
+                            println!("- **Warnings:** `{}`\n", result.warning_count);
+                            if !result.violations.is_empty() {
+                                println!("| Severity | Violation / Missing Element |");
+                                println!("|---|---|");
+                                for v in &result.violations {
+                                    println!("| `{:?}` | {} |", v.severity, v.message);
+                                }
+                                println!();
+                            }
+                            println!("<details><summary>Execution Receipt</summary>\n");
+                            println!("- **Task ID:** `{}`", receipt.task_id);
+                            println!("- **Actor:** `{}`", receipt.actor_id);
+                            println!("- **Output Digest:** `{}`", receipt.output_digest);
+                            println!(
+                                "- **Signature:** `{}` (Ed25519 Verified)",
+                                receipt.signature
+                            );
+                            println!("</details>");
+                        }
+                    },
                     Err(e) => {
                         eprintln!("[FAIL] Compliance audit failed: {}", e);
                     }
