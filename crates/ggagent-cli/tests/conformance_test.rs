@@ -811,7 +811,7 @@ fn test_split_conformal_risk_calibration_certificate() {
 }
 
 #[test]
-fn test_microsoft_sbom_tool_integration_and_spdx_validation() {
+fn test_spdx_tool_integration_and_spdx_validation() {
     let temp = tempdir().expect("tempdir");
     let drop_path = temp.path();
     let components_path = temp.path();
@@ -991,4 +991,62 @@ fn test_developer_experience_and_sarif_generation() {
 
     assert_eq!(sarif_val["version"], "2.1.0");
     assert!(sarif_val["runs"][0]["results"].as_array().unwrap().len() >= comp_res.error_count);
+}
+
+#[test]
+fn test_papercuts_and_underlying_risk_mitigations() {
+    // 1. Stdin & string-based SBOM ingestion eliminates file-only papercut
+    let cdx = ggagent_kernel::aibom::AiBomDocument::standard_ggagent_bom();
+    let cdx_json = serde_json::to_string(&cdx).expect("serialize");
+    let parsed = ggagent_validation::SbomAnalyzer::parse_str(&cdx_json)
+        .expect("parse_str succeeds on string content");
+    assert!(parsed.components.len() >= cdx.components.len());
+
+    // 2. Strict compliance audit catches violations deterministically
+    let temp = tempfile::tempdir().expect("tempdir");
+    let cdx_file = temp.path().join("bom.json");
+    std::fs::write(&cdx_file, &cdx_json).expect("write");
+    let (comp_res, _) = ggagent_validation::SbomAnalyzer::check_compliance(&cdx_file, Some("ntia"))
+        .expect("compliance check");
+    // Standard AI-BOM without explicit NTIA supplier fields must be flagged non-compliant
+    assert!(!comp_res.is_compliant);
+    assert!(comp_res.error_count > 0);
+
+    // 3. Tampered receipt detection: modifying any receipt field invalidates Ed25519 signature
+    let mut receipt =
+        ggagent_evidence::ExecutionReceipt::from_params(ggagent_evidence::ExecutionReceiptParams {
+            task_id: "test-task-tamper".into(),
+            actor_id: "actor:1".into(),
+            authority_id: "auth:root".into(),
+            capability_id: "cap:test".into(),
+            action: "read".into(),
+            input_digest: "sha256:0000".into(),
+            output_digest: "sha256:1111".into(),
+            effect_digest: "sha256:2222".into(),
+            duration_ms: 5,
+            exit_code: 0,
+        });
+    assert!(
+        receipt.verify_signature(),
+        "original signature must be valid"
+    );
+    // Tamper with output digest
+    receipt.output_digest = "sha256:tampered_digest".into();
+    assert!(
+        !receipt.verify_signature(),
+        "tampered receipt signature must be invalid"
+    );
+
+    // 4. Cleanroom SPDX 2.2 model contains zero proprietary Microsoft branding
+    let spdx = ggagent_kernel::spdx::SpdxDocument::from_cyclonedx(
+        &cdx,
+        "https://github.com/MChorfa/ckodex-ggagent-cli",
+    );
+    let spdx_json = serde_json::to_string_pretty(&spdx).expect("serialize spdx");
+    assert!(
+        !spdx_json.to_lowercase().contains("microsoft"),
+        "SPDX document must not contain Microsoft references"
+    );
+    assert!(spdx_json.contains("SPDX-2.2"));
+    assert!(spdx_json.contains("CC0-1.0"));
 }

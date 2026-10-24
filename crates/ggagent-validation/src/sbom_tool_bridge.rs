@@ -1,8 +1,8 @@
-//! # Microsoft sbom-tool Integration Bridge
+//! # SPDX 2.2 / 2.3 & sbom-tools Integration Bridge
 //!
-//! Provides native interoperability with Microsoft's sbom-tool:
+//! Provides cleanroom interoperability with SPDX tools:
 //! - Auto-discovery of the `sbom-tool` CLI binary on the host environment
-//! - Cleanroom native Rust fallback when `sbom-tool` is unavailable
+//! - Cleanroom native Rust fallback when external tool is unavailable
 //! - Strict conformance to the `_manifest/spdx_2.2/manifest.spdx.json` layout
 //! - Cryptographic Ed25519 execution receipt issuance for all SBOM generation & audit events
 
@@ -28,7 +28,7 @@ pub struct SbomExecutionResult {
 pub struct SbomToolBridge;
 
 impl SbomToolBridge {
-    /// Detects if Microsoft `sbom-tool` is present on the PATH
+    /// Detects if external `sbom-tool` is present on the PATH
     pub fn find_binary() -> Option<PathBuf> {
         let binary_name = if cfg!(windows) {
             "sbom-tool.exe"
@@ -46,7 +46,7 @@ impl SbomToolBridge {
         None
     }
 
-    /// Checks if Microsoft `sbom-tool` is available
+    /// Checks if external `sbom-tool` is available
     pub fn is_available() -> bool {
         Self::find_binary().is_some()
     }
@@ -63,7 +63,7 @@ impl SbomToolBridge {
         }
     }
 
-    /// Generates an SPDX 2.2 SBOM conforming to Microsoft sbom-tool standards
+    /// Generates an SPDX 2.2 SBOM conforming to ISO/IEC 5962:2021 standards
     pub fn generate_manifest(
         drop_path: &Path,
         _components_path: &Path,
@@ -81,7 +81,7 @@ impl SbomToolBridge {
         };
 
         let (spdx_doc, is_external) = if let Some(bin) = external_bin {
-            // Execute external Microsoft sbom-tool
+            // Execute external sbom-tool
             let status = Command::new(&bin)
                 .arg("generate")
                 .arg("-b")
@@ -130,7 +130,7 @@ impl SbomToolBridge {
             })?;
             (doc, true)
         } else {
-            // Cleanroom native generation conforming to Microsoft sbom-tool layout
+            // Cleanroom native generation conforming to ISO/IEC 5962:2021 layout
             let doc = SpdxDocument::standard_workspace_spdx(
                 package_name,
                 package_version,
@@ -173,7 +173,7 @@ impl SbomToolBridge {
         let receipt = ExecutionReceipt::from_params(ExecutionReceiptParams {
             task_id: format!("sbom-gen-{}", package_name),
             actor_id: if is_external {
-                "tool:microsoft-sbom-tool".into()
+                "tool:external-sbom-tool".into()
             } else {
                 "tool:ggagent-native-spdx".into()
             },
@@ -274,7 +274,7 @@ impl SbomToolBridge {
                     .to_string_lossy()
             ),
             actor_id: if is_external {
-                "tool:microsoft-sbom-tool".into()
+                "tool:external-sbom-tool".into()
             } else {
                 "tool:ggagent-native-spdx".into()
             },

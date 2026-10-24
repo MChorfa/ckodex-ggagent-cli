@@ -1,8 +1,8 @@
-//! # SPDX 2.2 / 2.3 & Microsoft sbom-tool Native Domain Model (ISO/IEC 5962:2021)
+//! # SPDX 2.2 / 2.3 & sbom-tools Native Domain Model (ISO/IEC 5962:2021)
 //!
 //! Pure, I/O-free domain representation for Software Bill of Materials conforming to:
 //! - SPDX 2.2 specification (ISO/IEC 5962:2021)
-//! - Microsoft sbom-tool manifest format (`_manifest/spdx_2.2/manifest.spdx.json`)
+//! - Standard SPDX manifest format (`_manifest/spdx_2.2/manifest.spdx.json`)
 //! - NTIA Minimum Elements for Software Bill of Materials (SBOM)
 //! - Bi-directional crosswalk with CycloneDX 1.7 AI-BOM (ECMA-424)
 
@@ -37,7 +37,7 @@ pub struct SpdxExternalRef {
     pub reference_locator: String,
 }
 
-/// SPDX 2.2 Package Description conforming to Microsoft sbom-tool
+/// SPDX 2.2 Package Description conforming to ISO/IEC 5962:2021
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SpdxPackage {
@@ -81,7 +81,7 @@ pub struct SpdxCreationInfo {
     pub license_list_version: Option<String>,
 }
 
-/// Complete SPDX 2.2 Document conforming to Microsoft sbom-tool & ISO/IEC 5962:2021
+/// Complete SPDX 2.2 Document conforming to ISO/IEC 5962:2021 & NTIA minimum elements
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SpdxDocument {
@@ -99,7 +99,7 @@ pub struct SpdxDocument {
 }
 
 impl SpdxDocument {
-    /// Generates canonical Microsoft sbom-tool compatible SPDX 2.2 document for ckodex-ggagent-cli
+    /// Generates canonical SPDX 2.2 document for ckodex-ggagent-cli conforming to ISO/IEC 5962:2021
     pub fn standard_workspace_spdx(
         package_name: &str,
         package_version: &str,
@@ -281,7 +281,7 @@ impl SpdxDocument {
             creation_info: SpdxCreationInfo {
                 created: now,
                 creators: vec![
-                    "Tool: Microsoft.SBOMTool-3.0.1".into(),
+                    "Tool: sbom-tools-0.3.0".into(),
                     "Tool: ckodex-ggagent-cli-0.2.0".into(),
                     if supplier.is_empty() {
                         default_supplier()
@@ -407,7 +407,7 @@ impl SpdxDocument {
             creation_info: SpdxCreationInfo {
                 created: now,
                 creators: vec![
-                    "Tool: Microsoft.SBOMTool-3.0.1".into(),
+                    "Tool: sbom-tools-0.3.0".into(),
                     "Tool: ckodex-ggagent-cli-0.2.0".into(),
                     "Organization: CKODEX Architecture Team".into(),
                 ],

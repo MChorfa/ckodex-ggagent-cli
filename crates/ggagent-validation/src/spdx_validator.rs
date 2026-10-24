@@ -1,9 +1,9 @@
-//! # SPDX 2.2 / 2.3 & Microsoft sbom-tool Validation Engine
+//! # SPDX 2.2 / 2.3 Validation Engine
 //!
 //! Enforces:
 //! 1. ISO/IEC 5962:2021 & SPDX 2.2 / 2.3 structural constraints
 //! 2. NTIA Minimum Elements for SBOMs (supplier, component name, version, unique IDs, relationship, timestamp)
-//! 3. Microsoft sbom-tool manifest alignment (`_manifest/spdx_2.2/manifest.spdx.json`)
+//! 3. Standard SPDX manifest alignment (`_manifest/spdx_2.2/manifest.spdx.json`)
 //! 4. Checksum integrity over declared package artifacts
 
 use crate::error::ValidationError;

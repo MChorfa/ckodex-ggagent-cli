@@ -105,20 +105,32 @@ enum Commands {
     },
 
     /// Deep Day-2 diagnostic suite (Doctor)
+    #[command(alias = "doc", alias = "health")]
     Doctor {
         /// Output format (table, json, markdown)
         #[arg(short = 'F', long = "format", default_value = "table")]
         format: OutputFormat,
+        /// Exit with non-zero code if any subsystem diagnostic fails
+        #[arg(long)]
+        strict: bool,
     },
 
+    /// Quick status check of all 20 runtime subsystems (alias for doctor)
+    Status,
+
     /// Generate shell autocompletion scripts (bash, zsh, fish, powershell, elvish)
+    #[command(alias = "comp")]
     Completions {
         /// Target shell
         #[arg(value_enum)]
         shell: clap_complete::Shell,
+        /// Print shell configuration installation instructions
+        #[arg(long)]
+        install: bool,
     },
 
     /// High-density Day-2 architecture & runtime dashboard
+    #[command(alias = "dash")]
     Dashboard {
         /// Initial tab or view: overview, sbom, strategies, mesh
         #[arg(short, long, default_value = "overview")]
@@ -158,7 +170,7 @@ enum Commands {
         cmd: AibomCommands,
     },
 
-    /// Native Microsoft sbom-tool & SPDX 2.2 / 2.3 integration (ISO/IEC 5962:2021)
+    /// High-assurance SBOM engine (sbom-tools) & ISO/IEC 5962:2021 SPDX 2.2/2.3 bridge
     Sbom {
         #[command(subcommand)]
         cmd: SbomCommands,
@@ -167,7 +179,7 @@ enum Commands {
 
 #[derive(Subcommand)]
 enum SbomCommands {
-    /// Generate SPDX 2.2 manifest conforming to Microsoft sbom-tool (_manifest/spdx_2.2/manifest.spdx.json)
+    /// Generate ISO/IEC 5962:2021 SPDX 2.2 manifest (_manifest/spdx_2.2/manifest.spdx.json)
     Generate {
         /// Drop path containing final build artifacts
         #[arg(short = 'b', long = "drop-path", default_value = ".")]
@@ -217,7 +229,7 @@ enum SbomCommands {
         external: bool,
     },
 
-    /// Convert between CycloneDX 1.7 AI-BOM and Microsoft sbom-tool SPDX 2.2
+    /// Convert between CycloneDX 1.7 AI-BOM and ISO/IEC 5962:2021 SPDX 2.2
     Convert {
         /// Input file path
         #[arg(short = 'i', long = "input")]
@@ -263,6 +275,9 @@ enum SbomCommands {
         /// Output format (table, json, sarif, markdown)
         #[arg(short = 'F', long = "format", default_value = "table")]
         format: OutputFormat,
+        /// Strict mode: exit with non-zero exit code if non-compliant
+        #[arg(long)]
+        strict: bool,
     },
 
     /// Parse and normalize any CycloneDX or SPDX SBOM via SbomAnalyzer
@@ -271,7 +286,7 @@ enum SbomCommands {
         path: String,
     },
 
-    /// Inspect host status for SbomAnalyzer and Microsoft sbom-tool bridge
+    /// Inspect host status for SbomAnalyzer and SPDX 2.2 bridge
     Status,
 }
 
@@ -691,7 +706,7 @@ fn run_doctor_diagnostics() -> Vec<DiagnosticItem> {
         details: "Checkpoint integrity & side-effect fencing verified".into(),
     });
 
-    // 19. Microsoft sbom-tool & SPDX 2.2 Integration (ISO/IEC 5962:2021)
+    // 19. SPDX 2.2 & sbom-tools Integration (ISO/IEC 5962:2021)
     let sbom_status = if SbomToolBridge::is_available() {
         format!(
             "External CLI discovered ({})",
@@ -702,7 +717,7 @@ fn run_doctor_diagnostics() -> Vec<DiagnosticItem> {
     };
     checks.push(DiagnosticItem {
         id: 19,
-        name: "Microsoft sbom-tool & SPDX 2.2".into(),
+        name: "SPDX 2.2 & sbom-tools Engine".into(),
         status: true,
         details: format!("ISO/IEC 5962:2021 verified ({})", sbom_status),
     });
@@ -716,6 +731,18 @@ fn run_doctor_diagnostics() -> Vec<DiagnosticItem> {
     });
 
     checks
+}
+
+/// Reads file contents or consumes standard input if path is "-"
+fn read_input(path_or_stdin: &str) -> anyhow::Result<String> {
+    if path_or_stdin == "-" {
+        use std::io::Read;
+        let mut buffer = String::new();
+        std::io::stdin().read_to_string(&mut buffer)?;
+        Ok(buffer)
+    } else {
+        Ok(fs::read_to_string(path_or_stdin)?)
+    }
 }
 
 #[tokio::main]
@@ -875,7 +902,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
             ArdCommands::Lint { path } => {
                 println!("🔍 Linting ARD document: {}", path);
-                let content = fs::read_to_string(&path)?;
+                let content = read_input(&path)?;
                 let doc = serde_json::from_str(&content)?;
                 ArdValidator::validate(&doc)?;
                 println!("✅ ARD document is valid according to ARD v1.0 standard.");
@@ -910,7 +937,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
             A2aCommands::Lint { path } => {
                 println!("🔍 Linting Agent Card: {}", path);
-                let content = fs::read_to_string(&path)?;
+                let content = read_input(&path)?;
                 let card: AgentCard = serde_json::from_str(&content)?;
                 AgentCardValidator::validate(&card)?;
                 println!("✅ Agent Card is valid according to A2A standard.");
@@ -1326,14 +1353,54 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
         },
 
-        Commands::Doctor { format } => {
+        Commands::Doctor { format, strict } => {
             let checks = run_doctor_diagnostics();
             DashboardRenderer::new().render_diagnostics(&checks, format);
+            if strict && checks.iter().any(|c| !c.status) {
+                return Err("One or more Day-2 doctor diagnostics failed in strict mode".into());
+            }
         }
 
-        Commands::Completions { shell } => {
-            let mut cmd = Cli::command();
-            clap_complete::generate(shell, &mut cmd, "ggagent", &mut std::io::stdout());
+        Commands::Status => {
+            let checks = run_doctor_diagnostics();
+            DashboardRenderer::new().render_diagnostics(&checks, OutputFormat::Table);
+        }
+
+        Commands::Completions { shell, install } => {
+            if install {
+                match shell {
+                    clap_complete::Shell::Bash => {
+                        println!("# Add the following line to your ~/.bashrc:");
+                        println!("eval \"$(ggagent completions bash)\"");
+                    }
+                    clap_complete::Shell::Zsh => {
+                        println!("# Add the following line to your ~/.zshrc:");
+                        println!("eval \"$(ggagent completions zsh)\"");
+                    }
+                    clap_complete::Shell::Fish => {
+                        println!("# Save completions to fish configuration:");
+                        println!(
+                            "ggagent completions fish > ~/.config/fish/completions/ggagent.fish"
+                        );
+                    }
+                    clap_complete::Shell::PowerShell => {
+                        println!("# Add to your PowerShell profile ($PROFILE):");
+                        println!(
+                            "Invoke-Expression (&ggagent completions powershell | Out-String)"
+                        );
+                    }
+                    clap_complete::Shell::Elvish => {
+                        println!("# Save completions to elvish configuration:");
+                        println!("eval (ggagent completions elvish | slurp)");
+                    }
+                    _ => {
+                        println!("# Run: ggagent completions <shell>");
+                    }
+                }
+            } else {
+                let mut cmd = Cli::command();
+                clap_complete::generate(shell, &mut cmd, "ggagent", &mut std::io::stdout());
+            }
         }
 
         Commands::Dashboard {
@@ -1346,7 +1413,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let total_count = checks.len();
             let strategies = StrategyRegistry::all();
             let sbom_status = if SbomToolBridge::is_available() {
-                "Microsoft sbom-tool bridge + SbomAnalyzer active"
+                "SPDX 2.2 bridge + SbomAnalyzer active"
             } else {
                 "Cleanroom SbomAnalyzer (CycloneDX 1.7 / SPDX 2.2)"
             };
@@ -1496,7 +1563,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 "🔐 Verifying Cryptographic Execution Receipt: {}",
                 receipt_path
             );
-            let content = fs::read_to_string(&receipt_path)?;
+            let content = read_input(&receipt_path)?;
             let receipt: ExecutionReceipt = serde_json::from_str(&content)?;
             if receipt.verify_signature() {
                 println!("✅ Receipt Signature Verified! Non-repudiation established.");
@@ -1509,7 +1576,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 println!("   Effect Digest: {}", receipt.effect_digest);
                 println!("   Timestamp:     {}", receipt.timestamp);
             } else {
-                println!("❌ Receipt Signature INVALID or Tampered!");
+                eprintln!("❌ Receipt Signature INVALID or Tampered!");
+                return Err("Receipt signature verification failed".into());
             }
         }
 
@@ -1517,7 +1585,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             match cmd {
                 ForensicCommands::Inspect { path } => {
                     println!("📦 Inspecting Forensic Evidence Bundle: {}\n", path);
-                    let content = fs::read_to_string(&path)?;
+                    let content = read_input(&path)?;
                     let bundle: ForensicBundle = serde_json::from_str(&content)?;
                     println!("   Bundle ID:       {}", bundle.bundle_id);
                     println!("   Task ID:         {}", bundle.task_id);
@@ -1538,9 +1606,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     if bundle.verify_integrity() {
                         println!("\n✅ FORENSIC INTEGRITY VERIFIED: Hash-chains, signatures & root manifest match.");
                     } else {
-                        println!(
+                        eprintln!(
                             "\n❌ FORENSIC INTEGRITY FAILED: Tampering or corruption detected!"
                         );
+                        return Err("Forensic bundle integrity verification failed".into());
                     }
                 }
                 ForensicCommands::Export { task_id, output } => {
@@ -1942,7 +2011,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
             AibomCommands::Verify { path } => {
                 println!("Auditing CycloneDX 1.7 AI-BOM: {}", path);
-                let content = fs::read_to_string(&path)?;
+                let content = read_input(&path)?;
                 match serde_json::from_str::<AiBomDocument>(&content) {
                     Ok(bom) => {
                         println!("  Format:       {} {}", bom.bom_format, bom.spec_version);
@@ -1972,6 +2041,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     }
                     Err(e) => {
                         eprintln!("[FAIL] AI-BOM validation failed: {}", e);
+                        return Err(format!("AI-BOM validation failed: {}", e).into());
                     }
                 }
             }
@@ -1987,7 +2057,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 namespace_base,
                 external,
             } => {
-                println!("Generating SPDX 2.2 SBOM (Microsoft sbom-tool format)...");
+                println!("Generating ISO/IEC 5962:2021 SPDX 2.2 SBOM...");
                 let drop_p = Path::new(&drop_path);
                 let comp_p = Path::new(&components_path);
                 match SbomToolBridge::generate_manifest(
@@ -2021,7 +2091,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         println!(
                             "  Engine Used:     {}",
                             if result.is_external_tool_used {
-                                "External Microsoft sbom-tool CLI"
+                                "External sbom-tool CLI"
                             } else {
                                 "Native Cleanroom Rust Engine"
                             }
@@ -2033,6 +2103,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     }
                     Err(e) => {
                         eprintln!("[FAIL] SBOM generation failed: {}", e);
+                        return Err(format!("SBOM generation failed: {}", e).into());
                     }
                 }
             }
@@ -2055,6 +2126,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     }
                     Err(e) => {
                         eprintln!("[FAIL] SBOM validation failed: {}", e);
+                        return Err(format!("SBOM validation failed: {}", e).into());
                     }
                 }
             }
@@ -2063,7 +2135,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 output,
                 mode,
             } => {
-                let content = fs::read_to_string(&input)?;
+                let content = read_input(&input)?;
                 match mode.to_lowercase().as_str() {
                     "cdx2spdx" | "cyclonedx-to-spdx" => {
                         let cdx: AiBomDocument = serde_json::from_str(&content)?;
@@ -2239,6 +2311,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     },
                     Err(e) => {
                         eprintln!("[FAIL] Semantic diff failed: {}", e);
+                        return Err(format!("Semantic diff failed: {}", e).into());
                     }
                 }
             }
@@ -2427,6 +2500,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     },
                     Err(e) => {
                         eprintln!("[FAIL] Quality scoring failed: {}", e);
+                        return Err(format!("Quality scoring failed: {}", e).into());
                     }
                 }
             }
@@ -2434,165 +2508,193 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 path,
                 framework,
                 format,
+                strict,
             } => {
                 let sbom_path = Path::new(&path);
                 match SbomAnalyzer::check_compliance(sbom_path, framework.as_deref()) {
-                    Ok((result, receipt)) => match format {
-                        OutputFormat::Table => {
-                            let styler = Styler::new();
-                            println!(
-                                "{}",
-                                styler.card_header("SBOM REGULATORY COMPLIANCE (SbomAnalyzer)", 76)
-                            );
-                            println!(
-                                "{}",
-                                styler.card_row(
-                                    "Target File",
-                                    &sbom_path.display().to_string(),
-                                    22
-                                )
-                            );
-                            println!(
-                                "{}",
-                                styler.card_row(
-                                    "Regulatory Standard",
-                                    &format!("{:?}", result.level),
-                                    22
-                                )
-                            );
-                            let verdict_badge = if result.is_compliant {
-                                styler.badge_pass("COMPLIANT")
-                            } else {
-                                styler.badge_fail("NON-COMPLIANT")
-                            };
-                            println!(
-                                "{}",
-                                styler.card_row("Compliance Verdict", &verdict_badge, 22)
-                            );
-                            println!(
-                                "{}",
-                                styler.card_row(
-                                    "Violations (Errors)",
-                                    &result.error_count.to_string(),
-                                    22
-                                )
-                            );
-                            println!(
-                                "{}",
-                                styler.card_row("Warnings", &result.warning_count.to_string(), 22)
-                            );
-                            println!(
-                                "{}",
-                                styler.card_row("Info Notes", &result.info_count.to_string(), 22)
-                            );
-                            if !result.violations.is_empty() {
+                    Ok((result, receipt)) => {
+                        match format {
+                            OutputFormat::Table => {
+                                let styler = Styler::new();
+                                println!(
+                                    "{}",
+                                    styler.card_header(
+                                        "SBOM REGULATORY COMPLIANCE (SbomAnalyzer)",
+                                        76
+                                    )
+                                );
+                                println!(
+                                    "{}",
+                                    styler.card_row(
+                                        "Target File",
+                                        &sbom_path.display().to_string(),
+                                        22
+                                    )
+                                );
+                                println!(
+                                    "{}",
+                                    styler.card_row(
+                                        "Regulatory Standard",
+                                        &format!("{:?}", result.level),
+                                        22
+                                    )
+                                );
+                                let verdict_badge = if result.is_compliant {
+                                    styler.badge_pass("COMPLIANT")
+                                } else {
+                                    styler.badge_fail("NON-COMPLIANT")
+                                };
+                                println!(
+                                    "{}",
+                                    styler.card_row("Compliance Verdict", &verdict_badge, 22)
+                                );
+                                println!(
+                                    "{}",
+                                    styler.card_row(
+                                        "Violations (Errors)",
+                                        &result.error_count.to_string(),
+                                        22
+                                    )
+                                );
+                                println!(
+                                    "{}",
+                                    styler.card_row(
+                                        "Warnings",
+                                        &result.warning_count.to_string(),
+                                        22
+                                    )
+                                );
+                                println!(
+                                    "{}",
+                                    styler.card_row(
+                                        "Info Notes",
+                                        &result.info_count.to_string(),
+                                        22
+                                    )
+                                );
+                                if !result.violations.is_empty() {
+                                    println!();
+                                    println!(
+                                        "{}",
+                                        styler.card_section("Violations / Missing Elements")
+                                    );
+                                    for v in result.violations.iter().take(8) {
+                                        let sev_str = format!("{:?}", v.severity);
+                                        let badge = match sev_str.as_str() {
+                                            "Error" | "High" => styler.badge_fail(&sev_str),
+                                            "Warning" | "Medium" => styler.badge_warn(&sev_str),
+                                            _ => styler.badge_info(&sev_str),
+                                        };
+                                        println!("    • {} {}", badge, v.message);
+                                    }
+                                }
                                 println!();
                                 println!(
                                     "{}",
-                                    styler.card_section("Violations / Missing Elements")
+                                    styler.card_section("Cryptographic Execution Receipt")
                                 );
-                                for v in result.violations.iter().take(8) {
-                                    let sev_str = format!("{:?}", v.severity);
-                                    let badge = match sev_str.as_str() {
-                                        "Error" | "High" => styler.badge_fail(&sev_str),
-                                        "Warning" | "Medium" => styler.badge_warn(&sev_str),
-                                        _ => styler.badge_info(&sev_str),
-                                    };
-                                    println!("    • {} {}", badge, v.message);
-                                }
-                            }
-                            println!();
-                            println!("{}", styler.card_section("Cryptographic Execution Receipt"));
-                            println!("{}", styler.card_row("Task ID", &receipt.task_id, 22));
-                            println!(
-                                "{}",
-                                styler.card_row("Actor Principal", &receipt.actor_id, 22)
-                            );
-                            println!(
-                                "{}",
-                                styler.card_row("Input Digest", &receipt.input_digest, 22)
-                            );
-                            println!(
-                                "{}",
-                                styler.card_row("Output Digest", &receipt.output_digest, 22)
-                            );
-                            let sig_short = if receipt.signature.len() >= 32 {
-                                &receipt.signature[..32]
-                            } else {
-                                &receipt.signature
-                            };
-                            println!(
-                                "{}",
-                                styler.card_row(
-                                    "Signature",
-                                    &format!("{} (Ed25519 Verified)", sig_short),
-                                    22
-                                )
-                            );
-                            println!("{}", styler.card_footer(76));
-                        }
-                        OutputFormat::Json => {
-                            let payload = serde_json::json!({
-                                "file": sbom_path.display().to_string(),
-                                "compliance": result,
-                                "receipt": receipt,
-                            });
-                            println!("{}", serde_json::to_string_pretty(&payload)?);
-                        }
-                        OutputFormat::Sarif => {
-                            let violations_tuples: Vec<(String, String, String)> = result
-                                .violations
-                                .iter()
-                                .enumerate()
-                                .map(|(idx, v)| {
-                                    (
-                                        format!("RULE-{:03}", idx + 1),
-                                        format!("{:?}", v.severity),
-                                        v.message.clone(),
-                                    )
-                                })
-                                .collect();
-                            let sarif = SarifReport::from_compliance_violations(
-                                &sbom_path.display().to_string(),
-                                &format!("{:?}", result.level),
-                                &violations_tuples,
-                            );
-                            println!("{}", serde_json::to_string_pretty(&sarif)?);
-                        }
-                        OutputFormat::Markdown => {
-                            println!("### ⚖️ SBOM Regulatory Compliance: `{:?}`\n", result.level);
-                            println!("- **Target File:** `{}`", sbom_path.display());
-                            println!(
-                                "- **Verdict:** {}",
-                                if result.is_compliant {
-                                    ":white_check_mark: **COMPLIANT**"
+                                println!("{}", styler.card_row("Task ID", &receipt.task_id, 22));
+                                println!(
+                                    "{}",
+                                    styler.card_row("Actor Principal", &receipt.actor_id, 22)
+                                );
+                                println!(
+                                    "{}",
+                                    styler.card_row("Input Digest", &receipt.input_digest, 22)
+                                );
+                                println!(
+                                    "{}",
+                                    styler.card_row("Output Digest", &receipt.output_digest, 22)
+                                );
+                                let sig_short = if receipt.signature.len() >= 32 {
+                                    &receipt.signature[..32]
                                 } else {
-                                    ":x: **NON-COMPLIANT**"
-                                }
-                            );
-                            println!("- **Errors:** `{}`", result.error_count);
-                            println!("- **Warnings:** `{}`\n", result.warning_count);
-                            if !result.violations.is_empty() {
-                                println!("| Severity | Violation / Missing Element |");
-                                println!("|---|---|");
-                                for v in &result.violations {
-                                    println!("| `{:?}` | {} |", v.severity, v.message);
-                                }
-                                println!();
+                                    &receipt.signature
+                                };
+                                println!(
+                                    "{}",
+                                    styler.card_row(
+                                        "Signature",
+                                        &format!("{} (Ed25519 Verified)", sig_short),
+                                        22
+                                    )
+                                );
+                                println!("{}", styler.card_footer(76));
                             }
-                            println!("<details><summary>Execution Receipt</summary>\n");
-                            println!("- **Task ID:** `{}`", receipt.task_id);
-                            println!("- **Actor:** `{}`", receipt.actor_id);
-                            println!("- **Output Digest:** `{}`", receipt.output_digest);
-                            println!(
-                                "- **Signature:** `{}` (Ed25519 Verified)",
-                                receipt.signature
-                            );
-                            println!("</details>");
+                            OutputFormat::Json => {
+                                let payload = serde_json::json!({
+                                    "file": sbom_path.display().to_string(),
+                                    "compliance": result,
+                                    "receipt": receipt,
+                                });
+                                println!("{}", serde_json::to_string_pretty(&payload)?);
+                            }
+                            OutputFormat::Sarif => {
+                                let violations_tuples: Vec<(String, String, String)> = result
+                                    .violations
+                                    .iter()
+                                    .enumerate()
+                                    .map(|(idx, v)| {
+                                        (
+                                            format!("RULE-{:03}", idx + 1),
+                                            format!("{:?}", v.severity),
+                                            v.message.clone(),
+                                        )
+                                    })
+                                    .collect();
+                                let sarif = SarifReport::from_compliance_violations(
+                                    &sbom_path.display().to_string(),
+                                    &format!("{:?}", result.level),
+                                    &violations_tuples,
+                                );
+                                println!("{}", serde_json::to_string_pretty(&sarif)?);
+                            }
+                            OutputFormat::Markdown => {
+                                println!(
+                                    "### ⚖️ SBOM Regulatory Compliance: `{:?}`\n",
+                                    result.level
+                                );
+                                println!("- **Target File:** `{}`", sbom_path.display());
+                                println!(
+                                    "- **Verdict:** {}",
+                                    if result.is_compliant {
+                                        ":white_check_mark: **COMPLIANT**"
+                                    } else {
+                                        ":x: **NON-COMPLIANT**"
+                                    }
+                                );
+                                println!("- **Errors:** `{}`", result.error_count);
+                                println!("- **Warnings:** `{}`\n", result.warning_count);
+                                if !result.violations.is_empty() {
+                                    println!("| Severity | Violation / Missing Element |");
+                                    println!("|---|---|");
+                                    for v in &result.violations {
+                                        println!("| `{:?}` | {} |", v.severity, v.message);
+                                    }
+                                    println!();
+                                }
+                                println!("<details><summary>Execution Receipt</summary>\n");
+                                println!("- **Task ID:** `{}`", receipt.task_id);
+                                println!("- **Actor:** `{}`", receipt.actor_id);
+                                println!("- **Output Digest:** `{}`", receipt.output_digest);
+                                println!(
+                                    "- **Signature:** `{}` (Ed25519 Verified)",
+                                    receipt.signature
+                                );
+                                println!("</details>");
+                            }
+                        };
+                        if strict && !result.is_compliant {
+                            return Err(format!(
+                                "SBOM non-compliant with standard {:?}: {} violations detected",
+                                result.level, result.error_count
+                            )
+                            .into());
                         }
-                    },
+                    }
                     Err(e) => {
                         eprintln!("[FAIL] Compliance audit failed: {}", e);
+                        return Err(format!("Compliance audit failed: {}", e).into());
                     }
                 }
             }
@@ -2639,7 +2741,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 println!("  Semantic Diff Engine:       READY (Component, license & vulnerability diffs)");
                 println!("  Quality Scorer:             READY (Profiles: Standard, CRA, BSI TR-03183, AI Readiness)");
                 println!("  Regulatory Compliance:      READY (NTIA Minimum Elements, EU CRA P1/P2, FDA, EO 14028, NIST SSDF)\n");
-                println!("  [Microsoft sbom-tool Cleanroom & SPDX 2.2 Bridge]");
+                println!("  [SPDX 2.2 & sbom-tools Cleanroom Bridge]");
                 println!(
                     "  External sbom-tool binary:  {}",
                     if SbomToolBridge::is_available() {

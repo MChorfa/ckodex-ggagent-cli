@@ -49,17 +49,22 @@ The runtime exposes:
 Usage: ggagent <COMMAND>
 
 Commands:
-  create      Scaffold a new Google ADK / A2A agent project
-  playground  Launch the local runtime and interactive web interface
-  eval        Evaluate agent conformance vectors and conformal risk calibration
-  ard         Agentic Resource Discovery (ARD) operations
-  a2a         Google Agent-to-Agent (A2A) protocol operations
-  subagents   List, inspect, and execute the 77 canonical subagent strategies
-  harness     Cross-harness interoperability bridge (Gemini, Claude, Codex, OpenCode, SAM)
-  forensic    Export or inspect tamper-evident post-mortem evidence bundles
-  doctor      Run Day-2 diagnostic suite across 18 operational systems
-  explain     Output causal decision trace and authority path for a task
-  verify      Verify cryptographic execution receipt or DSSE envelope
+  create       Scaffold a new Google ADK / A2A agent project
+  playground   Launch the local runtime and interactive web interface
+  dashboard    High-density Day-2 architecture & runtime dashboard
+  status       Quick status check of all 20 runtime subsystems (alias for doctor)
+  doctor       Run Day-2 diagnostic suite across 20 operational systems
+  eval         Evaluate agent conformance vectors and conformal risk calibration
+  ard          Agentic Resource Discovery (ARD) operations
+  a2a          Google Agent-to-Agent (A2A) protocol operations
+  subagents    List, inspect, and execute the 77 canonical subagent strategies
+  harness      Cross-harness interoperability bridge (Gemini, Claude, Codex, OpenCode, SAM)
+  sbom         High-assurance SBOM engine (sbom-tools) & ISO/IEC 5962:2021 SPDX bridge
+  aibom        CycloneDX 1.7 (ECMA-424) AI-BOM generation and cryptographic verification
+  forensic     Export or inspect tamper-evident post-mortem evidence bundles
+  explain      Output causal decision trace and authority path for a task
+  verify       Verify cryptographic execution receipt or DSSE envelope
+  completions  Generate shell autocompletions (bash, zsh, fish, powershell, elvish)
 ```
 
 ### Inspect subagent strategies
@@ -148,6 +153,7 @@ The test suite validates 13 formal execution contracts in `crates/ggagent-cli/te
 
 ## Specification and standards references
 
+- [Underlying Tensions, Risks & Papercut Ledger](docs/UNDERLYING-TENSIONS-AND-RISKS.md)
 - [Google Agent-to-Agent (A2A) Protocol](https://developers.googleblog.com/en/a2a-a-new-era-of-agent-interoperability/)
 - [Agentic Resource Discovery (ARD)](https://agenticresourcediscovery.org/)
 - [in-toto Attestation Framework v1.0](https://in-toto.io)

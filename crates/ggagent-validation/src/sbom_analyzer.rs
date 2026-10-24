@@ -22,14 +22,30 @@ use std::time::Instant;
 pub struct SbomAnalyzer;
 
 impl SbomAnalyzer {
-    /// Ingests and normalizes any CycloneDX or SPDX SBOM into unified `NormalizedSbom`
+    /// Ingests and normalizes any CycloneDX or SPDX SBOM into unified `NormalizedSbom` from a path or stdin ('-')
     pub fn parse(path: &Path) -> Result<NormalizedSbom, ValidationError> {
-        parse_sbom(path).map_err(|e| {
-            ValidationError::SbomAnalysisError(format!(
-                "Failed to parse SBOM at '{}': {}",
-                path.display(),
-                e
-            ))
+        if path.to_str() == Some("-") {
+            use std::io::Read;
+            let mut buffer = String::new();
+            std::io::stdin().read_to_string(&mut buffer).map_err(|e| {
+                ValidationError::SbomAnalysisError(format!("Failed to read SBOM from stdin: {}", e))
+            })?;
+            Self::parse_str(&buffer)
+        } else {
+            parse_sbom(path).map_err(|e| {
+                ValidationError::SbomAnalysisError(format!(
+                    "Failed to parse SBOM at '{}': {}",
+                    path.display(),
+                    e
+                ))
+            })
+        }
+    }
+
+    /// Ingests and normalizes any CycloneDX or SPDX SBOM from a raw string
+    pub fn parse_str(content: &str) -> Result<NormalizedSbom, ValidationError> {
+        sbom_tools::parsers::parse_sbom_str(content).map_err(|e| {
+            ValidationError::SbomAnalysisError(format!("Failed to parse SBOM content: {}", e))
         })
     }
 
@@ -231,5 +247,13 @@ mod tests {
         assert!(receipt.verify_signature());
         assert!(diff_result.semantic_score < 100.0);
         assert!(!diff_result.components.removed.is_empty());
+    }
+
+    #[test]
+    fn test_sbom_analyzer_parse_str() {
+        let cdx = ggagent_kernel::aibom::AiBomDocument::standard_ggagent_bom();
+        let serialized = serde_json::to_string(&cdx).expect("serialize");
+        let parsed = SbomAnalyzer::parse_str(&serialized).expect("parse_str succeeds");
+        assert!(!parsed.components.is_empty());
     }
 }
