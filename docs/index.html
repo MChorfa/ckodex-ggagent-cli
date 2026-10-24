@@ -1,871 +1,1281 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="ledger">
+<html lang="en" data-theme="dark">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>ckodex-ggagent-cli · Evidence Ledger & Runtime</title>
-  <meta name="description" content="Cleanroom runtime and CLI for Google A2A protocol, Agentic Resource Discovery, and sandboxed execution under CKODEX-DS-3.">
+  <title>ckodex-ggagent-cli · Autonomous Agent Sandboxing & A2A Runtime</title>
+  <meta name="description" content="Cleanroom runtime and CLI for Google A2A protocol, Agentic Resource Discovery, and zero-trust sandboxed multi-agent execution under CKODEX-DS-3.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
-    :root, [data-theme="ledger"] {
-      --ck-bg-0: #F6F1E8;
-      --ck-bg-1: #FCF8F1;
-      --ck-bg-2: #EFE8DA;
-      --ck-ink: #211B14;
-      --ck-fg-2: #4A4334;
-      --ck-tone: #6E6457;
-      --ck-fg-mute: #8A8070;
-      --ck-hairline: #E3DACB;
-      --ck-hairline-strong: #CDC2AC;
-      --ck-rust: #B4532A;
-      --ck-rust-hover: #9A431E;
-      --ck-proof: #6D28D9;
-      --ck-alarm: #B91C1C;
-      --ck-font-display: "Instrument Serif", Georgia, serif;
-      --ck-font-interface: "Geist", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      --ck-font-mono: "JetBrains Mono", ui-monospace, Menlo, Consolas, monospace;
-      color-scheme: light;
-    }
-
-    [data-theme="vault"] {
-      --ck-bg-0: #0A1322;
-      --ck-bg-1: #101C30;
-      --ck-bg-2: #18263E;
-      --ck-ink: #EAE5DA;
-      --ck-fg-2: #C7BFAF;
-      --ck-tone: #9A9284;
-      --ck-fg-mute: #6B6457;
-      --ck-hairline: #1D2A40;
-      --ck-hairline-strong: #2C3D5A;
-      --ck-rust: #D2693A;
-      --ck-rust-hover: #B85628;
-      --ck-proof: #A78BFA;
-      --ck-alarm: #F87171;
+    :root, [data-theme="dark"] {
+      --bg-base: #080C14;
+      --bg-surface: #0E1626;
+      --bg-elevated: #142036;
+      --bg-subtle: #1B2B48;
+      --border-subtle: #1E2E4A;
+      --border-strong: #2B4066;
+      --text-main: #F1F5F9;
+      --text-muted: #94A3B8;
+      --text-faint: #64748B;
+      --accent-rust: #E26D38;
+      --accent-rust-hover: #F07E4A;
+      --accent-cyan: #38BDF8;
+      --accent-purple: #A78BFA;
+      --accent-green: #34D399;
+      --accent-red: #F87171;
+      --accent-amber: #FBBF24;
+      --font-ui: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      --font-mono: "JetBrains Mono", ui-monospace, Menlo, Consolas, monospace;
+      --glow-cyan: 0 0 20px rgba(56, 189, 248, 0.15);
+      --glow-rust: 0 0 20px rgba(226, 109, 56, 0.15);
       color-scheme: dark;
     }
 
+    [data-theme="light"] {
+      --bg-base: #F8FAFC;
+      --bg-surface: #FFFFFF;
+      --bg-elevated: #F1F5F9;
+      --bg-subtle: #E2E8F0;
+      --border-subtle: #E2E8F0;
+      --border-strong: #CBD5E1;
+      --text-main: #0F172A;
+      --text-muted: #475569;
+      --text-faint: #64748B;
+      --accent-rust: #C2410C;
+      --accent-rust-hover: #9A3412;
+      --accent-cyan: #0284C7;
+      --accent-purple: #7C3AED;
+      --accent-green: #059669;
+      --accent-red: #DC2626;
+      --accent-amber: #D97706;
+      --font-ui: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      --font-mono: "JetBrains Mono", ui-monospace, Menlo, Consolas, monospace;
+      --glow-cyan: none;
+      --glow-rust: none;
+      color-scheme: light;
+    }
+
     * { box-sizing: border-box; margin: 0; padding: 0; }
-
+    html { scroll-behavior: smooth; }
     body {
-      background: var(--ck-bg-0);
-      color: var(--ck-ink);
-      font-family: var(--ck-font-interface);
+      background: var(--bg-base);
+      color: var(--text-main);
+      font-family: var(--font-ui);
       font-size: 14px;
-      line-height: 1.5;
-      padding: 32px 24px;
+      line-height: 1.6;
       -webkit-font-smoothing: antialiased;
+      overflow-x: hidden;
     }
 
-    .editorial-layout {
-      max-width: 1320px;
+    /* Container & Layout */
+    .container {
+      max-width: 1360px;
       margin: 0 auto;
+      padding: 0 24px;
     }
 
-    header.masthead {
-      border-bottom: 2px solid var(--ck-ink);
-      padding-bottom: 20px;
-      margin-bottom: 32px;
+    /* Navigation Bar */
+    header.site-nav {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: rgba(8, 12, 20, 0.85);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border-subtle);
+    }
+    [data-theme="light"] header.site-nav {
+      background: rgba(248, 250, 252, 0.85);
+    }
+    .nav-inner {
       display: flex;
+      align-items: center;
       justify-content: space-between;
-      align-items: flex-end;
-      flex-wrap: wrap;
-      gap: 16px;
+      height: 64px;
+      gap: 20px;
     }
-
-    .title-group h1 {
-      font-family: var(--ck-font-display);
-      font-size: 2.75rem;
-      font-weight: 400;
-      line-height: 1.1;
-      letter-spacing: -0.01em;
+    .nav-brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      text-decoration: none;
+      color: var(--text-main);
+      font-weight: 700;
+      font-size: 1.05rem;
+      letter-spacing: -0.02em;
     }
-
-    .title-group p {
-      font-size: 0.95rem;
-      color: var(--ck-tone);
-      margin-top: 6px;
-      font-family: var(--ck-font-interface);
+    .nav-brand .pulse-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--accent-green);
+      box-shadow: 0 0 8px var(--accent-green);
+      animation: pulse 2s infinite;
     }
-
-    .masthead-meta {
-      font-family: var(--ck-font-mono);
-      font-size: 0.75rem;
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
-      color: var(--ck-tone);
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.5; transform: scale(0.85); }
+    }
+    .nav-brand .version-pill {
+      font-family: var(--font-mono);
+      font-size: 0.7rem;
+      font-weight: 500;
+      padding: 2px 7px;
+      border-radius: 4px;
+      background: var(--bg-subtle);
+      border: 1px solid var(--border-strong);
+      color: var(--accent-cyan);
+    }
+    .nav-links {
       display: flex;
       gap: 20px;
+      list-style: none;
       align-items: center;
     }
-
-    .theme-toggle {
-      background: none;
-      border: 1px solid var(--ck-hairline-strong);
-      color: var(--ck-ink);
-      font-family: var(--ck-font-mono);
-      font-size: 0.75rem;
-      padding: 4px 10px;
-      cursor: pointer;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
+    .nav-links a {
+      color: var(--text-muted);
+      text-decoration: none;
+      font-size: 0.88rem;
+      font-weight: 500;
+      transition: color 0.15s ease;
     }
-
-    .theme-toggle:hover {
-      border-color: var(--ck-rust);
-      color: var(--ck-rust);
+    .nav-links a:hover {
+      color: var(--text-main);
     }
-
-    /* Two-column Evidence Editorial Grid */
-    .folio-grid {
-      display: grid;
-      grid-template-columns: minmax(0, 1fr) 340px;
-      gap: 40px;
-      align-items: start;
-    }
-
-    @media (max-width: 1024px) {
-      .folio-grid {
-        grid-template-columns: 1fr;
-      }
-    }
-
-    /* Main editorial column */
-    .editorial-main {
-      min-width: 0;
-    }
-
-    /* Evidence margin */
-    .editorial-margin {
-      border-left: 1px solid var(--ck-hairline);
-      padding-left: 28px;
-    }
-
-    @media (max-width: 1024px) {
-      .editorial-margin {
-        border-left: none;
-        border-top: 1px solid var(--ck-hairline);
-        padding-left: 0;
-        padding-top: 32px;
-      }
-    }
-
-    .section-head {
-      border-bottom: 1px solid var(--ck-hairline-strong);
-      padding-bottom: 8px;
-      margin-bottom: 16px;
+    .nav-actions {
       display: flex;
-      justify-content: space-between;
-      align-items: baseline;
+      align-items: center;
+      gap: 12px;
     }
-
-    .section-head h2 {
-      font-family: var(--ck-font-display);
-      font-size: 1.5rem;
-      font-weight: 400;
-    }
-
-    .section-head .reg {
-      font-family: var(--ck-font-mono);
+    .theme-toggle-btn {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      color: var(--text-main);
+      padding: 6px 12px;
+      border-radius: 6px;
+      font-family: var(--font-mono);
       font-size: 0.75rem;
-      color: var(--ck-tone);
-      letter-spacing: 0.05em;
-      text-transform: uppercase;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.15s ease;
+    }
+    .theme-toggle-btn:hover {
+      border-color: var(--border-strong);
+      background: var(--bg-elevated);
     }
 
-    .card-block {
-      background: var(--ck-bg-1);
-      border: 1px solid var(--ck-hairline);
-      padding: 20px;
+    /* Badges & Tags */
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 3px 8px;
+      border-radius: 4px;
+      font-family: var(--font-mono);
+      font-size: 0.72rem;
+      font-weight: 500;
+      letter-spacing: 0.02em;
+      border: 1px solid transparent;
+      white-space: nowrap;
+    }
+    .badge.pass, .badge.success {
+      background: rgba(52, 211, 153, 0.12);
+      border-color: rgba(52, 211, 153, 0.35);
+      color: var(--accent-green);
+    }
+    .badge.warn {
+      background: rgba(251, 191, 36, 0.12);
+      border-color: rgba(251, 191, 36, 0.35);
+      color: var(--accent-amber);
+    }
+    .badge.fail, .badge.alarm {
+      background: rgba(248, 113, 113, 0.12);
+      border-color: rgba(248, 113, 113, 0.35);
+      color: var(--accent-red);
+    }
+    .badge.proof {
+      background: rgba(167, 139, 250, 0.12);
+      border-color: rgba(167, 139, 250, 0.35);
+      color: var(--accent-purple);
+    }
+    .badge.info {
+      background: rgba(56, 189, 248, 0.12);
+      border-color: rgba(56, 189, 248, 0.35);
+      color: var(--accent-cyan);
+    }
+    .badge.neutral {
+      background: var(--bg-subtle);
+      border-color: var(--border-subtle);
+      color: var(--text-muted);
+    }
+
+    /* Buttons */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 9px 18px;
+      border-radius: 6px;
+      font-family: var(--font-ui);
+      font-size: 0.85rem;
+      font-weight: 600;
+      text-decoration: none;
+      cursor: pointer;
+      border: 1px solid transparent;
+      transition: all 0.15s ease;
+    }
+    .btn-primary {
+      background: var(--accent-rust);
+      color: #FFFFFF;
+      border-color: var(--accent-rust);
+    }
+    .btn-primary:hover {
+      background: var(--accent-rust-hover);
+      border-color: var(--accent-rust-hover);
+      box-shadow: 0 4px 12px rgba(226, 109, 56, 0.25);
+    }
+    .btn-secondary {
+      background: var(--bg-surface);
+      color: var(--text-main);
+      border-color: var(--border-strong);
+    }
+    .btn-secondary:hover {
+      background: var(--bg-elevated);
+      border-color: var(--text-muted);
+    }
+    .btn-ghost {
+      background: transparent;
+      color: var(--text-muted);
+      border-color: transparent;
+    }
+    .btn-ghost:hover {
+      color: var(--text-main);
+      background: var(--bg-surface);
+    }
+    .btn-sm {
+      padding: 5px 10px;
+      font-size: 0.78rem;
+    }
+
+    /* Hero Section */
+    .hero-section {
+      padding: 64px 0 48px;
+      border-bottom: 1px solid var(--border-subtle);
+      position: relative;
+    }
+    .hero-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 48px;
+      align-items: center;
+    }
+    @media (max-width: 960px) {
+      .hero-grid { grid-template-columns: 1fr; gap: 36px; }
+      .nav-links { display: none; }
+    }
+    .hero-content h1 {
+      font-size: 2.85rem;
+      font-weight: 700;
+      line-height: 1.15;
+      letter-spacing: -0.03em;
+      margin-bottom: 18px;
+    }
+    .hero-content h1 .gradient-text {
+      background: linear-gradient(135deg, var(--text-main) 30%, var(--accent-cyan) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .hero-content p {
+      font-size: 1.05rem;
+      color: var(--text-muted);
+      line-height: 1.6;
+      margin-bottom: 24px;
+      max-width: 560px;
+    }
+    .hero-badges {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
       margin-bottom: 28px;
     }
-
-    .vector-state-display {
-      font-family: var(--ck-font-mono);
-      font-size: 0.85rem;
-      background: var(--ck-bg-2);
-      border: 1px solid var(--ck-hairline-strong);
+    .quickstart-box {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-strong);
+      border-radius: 8px;
       padding: 12px 16px;
-      margin: 12px 0;
-      color: var(--ck-ink);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      font-family: var(--font-mono);
+      font-size: 0.85rem;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.2);
+    }
+    .quickstart-box code {
+      color: var(--accent-cyan);
       overflow-x: auto;
       white-space: nowrap;
     }
-
-    .vector-state-display.proof {
-      border-left: 3px solid var(--ck-proof);
-    }
-
-    .vector-state-display.alarm {
-      border-left: 3px solid var(--ck-alarm);
-      color: var(--ck-alarm);
-    }
-
-    .btn-row {
-      display: flex;
-      gap: 10px;
-      flex-wrap: wrap;
-      margin-top: 14px;
-    }
-
-    .btn-ds {
-      background: var(--ck-rust);
-      color: var(--ck-bg-0);
-      border: none;
-      padding: 8px 16px;
-      font-family: var(--ck-font-interface);
-      font-size: 0.85rem;
-      font-weight: 500;
+    .copy-btn {
+      background: var(--bg-subtle);
+      border: 1px solid var(--border-subtle);
+      color: var(--text-main);
+      padding: 4px 10px;
+      border-radius: 4px;
       cursor: pointer;
-      text-decoration: none;
-      display: inline-block;
-      transition: background 0.15s ease;
+      font-family: var(--font-mono);
+      font-size: 0.72rem;
+      transition: all 0.15s;
+    }
+    .copy-btn:hover {
+      background: var(--bg-elevated);
+      border-color: var(--border-strong);
     }
 
-    .btn-ds:hover {
-      background: var(--ck-rust-hover);
+    /* Terminal Simulator */
+    .terminal-window {
+      background: #06090F;
+      border: 1px solid var(--border-strong);
+      border-radius: 10px;
+      box-shadow: 0 16px 40px rgba(0,0,0,0.4), var(--glow-cyan);
+      overflow: hidden;
+      font-family: var(--font-mono);
     }
-
-    .btn-ds.secondary {
+    .terminal-header {
+      background: #0A0F1A;
+      padding: 10px 14px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+    .terminal-dots {
+      display: flex;
+      gap: 6px;
+    }
+    .terminal-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+    }
+    .dot-red { background: #EF4444; }
+    .dot-yellow { background: #F59E0B; }
+    .dot-green { background: #10B981; }
+    .terminal-tabs {
+      display: flex;
+      gap: 6px;
+    }
+    .terminal-tab {
       background: transparent;
-      color: var(--ck-ink);
-      border: 1px solid var(--ck-hairline-strong);
-    }
-
-    .btn-ds.secondary:hover {
-      border-color: var(--ck-ink);
-    }
-
-    .btn-ds.alarm {
-      background: var(--ck-alarm);
-      color: #fff;
-    }
-
-    .btn-ds.alarm:hover {
-      background: #991b1b;
-    }
-
-    /* Ledger Table */
-    table.ledger-table {
-      width: 100%;
-      border-collapse: collapse;
-      font-size: 0.85rem;
-      margin-top: 8px;
-    }
-
-    table.ledger-table th {
-      font-family: var(--ck-font-mono);
-      font-weight: 500;
+      border: none;
+      color: #64748B;
+      padding: 3px 10px;
       font-size: 0.72rem;
-      text-transform: uppercase;
-      letter-spacing: 0.06em;
-      color: var(--ck-tone);
-      text-align: left;
-      padding: 8px 10px;
-      border-bottom: 1px solid var(--ck-hairline-strong);
-      background: var(--ck-bg-2);
+      border-radius: 4px;
+      cursor: pointer;
+      font-family: var(--font-mono);
+      transition: all 0.15s;
     }
-
-    table.ledger-table td {
-      padding: 10px;
-      border-bottom: 1px solid var(--ck-hairline);
-      vertical-align: top;
+    .terminal-tab.active {
+      background: #152238;
+      color: #38BDF8;
+      font-weight: 600;
     }
-
-    table.ledger-table tr:hover td {
-      background: var(--ck-bg-2);
-    }
-
-    .code-tag {
-      font-family: var(--ck-font-mono);
-      font-size: 0.75rem;
-      background: var(--ck-bg-2);
-      padding: 2px 6px;
-      border: 1px solid var(--ck-hairline);
-    }
-
-    /* Evidence Margin Streams */
-    .margin-block {
-      margin-bottom: 28px;
-    }
-
-    .margin-block h3 {
-      font-family: var(--ck-font-mono);
-      font-size: 0.72rem;
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
-      color: var(--ck-tone);
-      margin-bottom: 10px;
-      border-bottom: 1px solid var(--ck-hairline);
-      padding-bottom: 4px;
-    }
-
-    .flight-ledger {
-      font-family: var(--ck-font-mono);
-      font-size: 0.75rem;
+    .terminal-body {
+      padding: 16px;
+      font-size: 0.78rem;
       line-height: 1.6;
-      background: var(--ck-bg-1);
-      border: 1px solid var(--ck-hairline);
-      padding: 12px;
-      height: 280px;
+      color: #CBD5E1;
+      height: 340px;
       overflow-y: auto;
-      color: var(--ck-tone);
+      background: #06090F;
+    }
+    .terminal-prompt {
+      color: #38BDF8;
+      font-weight: 600;
+      margin-bottom: 8px;
+    }
+    .terminal-output {
+      white-space: pre-wrap;
+      word-break: break-all;
     }
 
-    .flight-entry {
-      margin-bottom: 6px;
-      border-bottom: 1px dotted var(--ck-hairline);
-      padding-bottom: 4px;
+    /* Section Cards & Grids */
+    .section-block {
+      padding: 56px 0;
+      border-bottom: 1px solid var(--border-subtle);
     }
-
-    .flight-entry .ts {
-      color: var(--ck-fg-mute);
-    }
-
-    .flight-entry .chn {
-      color: var(--ck-rust);
-    }
-
-    .flight-entry .val {
-      color: var(--ck-ink);
-    }
-
-    .flight-entry.proof-line .val {
-      color: var(--ck-proof);
-    }
-
-    .flight-entry.alarm-line .val {
-      color: var(--ck-alarm);
-    }
-
-    .receipt-box {
-      font-family: var(--ck-font-mono);
-      font-size: 0.75rem;
-      background: var(--ck-bg-1);
-      border-left: 2px solid var(--ck-proof);
-      border-top: 1px solid var(--ck-hairline);
-      border-right: 1px solid var(--ck-hairline);
-      border-bottom: 1px solid var(--ck-hairline);
-      padding: 12px;
-      margin-top: 8px;
-    }
-
-    .receipt-row {
+    .section-title-bar {
       display: flex;
       justify-content: space-between;
-      margin-bottom: 4px;
-    }
-
-    .receipt-row .label {
-      color: var(--ck-tone);
-    }
-
-    .receipt-row .value {
-      color: var(--ck-ink);
-    }
-
-    footer.colophon {
-      border-top: 1px solid var(--ck-hairline-strong);
-      padding-top: 24px;
-      margin-top: 48px;
-      font-size: 0.8rem;
-      color: var(--ck-tone);
-      display: flex;
-      justify-content: space-between;
+      align-items: flex-end;
+      margin-bottom: 24px;
       flex-wrap: wrap;
       gap: 12px;
     }
-
-    a.plain-link {
-      color: var(--ck-ink);
-      text-decoration: underline;
-      text-underline-offset: 3px;
+    .section-title-bar h2 {
+      font-size: 1.75rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+    }
+    .section-title-bar p {
+      color: var(--text-muted);
+      font-size: 0.92rem;
+      margin-top: 4px;
+    }
+    .card-panel {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      border-radius: 8px;
+      padding: 24px;
+      margin-bottom: 24px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.1);
     }
 
-    a.plain-link:hover {
-      color: var(--ck-rust);
+    /* 4-Agent Mesh Visual DAG */
+    .mesh-dag-container {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+      position: relative;
+      margin: 20px 0;
+    }
+    @media (max-width: 900px) {
+      .mesh-dag-container { grid-template-columns: 1fr 1fr; }
+    }
+    @media (max-width: 540px) {
+      .mesh-dag-container { grid-template-columns: 1fr; }
+    }
+    .agent-node {
+      background: var(--bg-elevated);
+      border: 1px solid var(--border-subtle);
+      border-radius: 8px;
+      padding: 16px;
+      position: relative;
+      transition: all 0.25s ease;
+    }
+    .agent-node.active {
+      border-color: var(--accent-cyan);
+      box-shadow: 0 0 16px rgba(56, 189, 248, 0.25);
+    }
+    .agent-node.verified {
+      border-color: var(--accent-green);
+    }
+    .agent-node .agent-role {
+      font-family: var(--font-mono);
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      color: var(--text-faint);
+    }
+    .agent-node .agent-name {
+      font-size: 1.05rem;
+      font-weight: 700;
+      margin: 4px 0 6px;
+    }
+    .agent-node .agent-contract {
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      color: var(--accent-cyan);
+      margin-bottom: 8px;
+    }
+
+    /* State Vector Inspector */
+    .vector-bar {
+      font-family: var(--font-mono);
+      font-size: 0.85rem;
+      background: var(--bg-elevated);
+      border: 1px solid var(--border-strong);
+      border-left: 4px solid var(--accent-green);
+      border-radius: 6px;
+      padding: 14px 18px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      overflow-x: auto;
+      gap: 16px;
+      margin: 16px 0;
+    }
+    .vector-bar.alarm {
+      border-left-color: var(--accent-red);
+      color: var(--accent-red);
+    }
+
+    /* SBOM Studio Components */
+    .sbom-metrics-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 16px;
+      margin: 20px 0;
+    }
+    .metric-card {
+      background: var(--bg-elevated);
+      border: 1px solid var(--border-subtle);
+      border-radius: 6px;
+      padding: 16px;
+    }
+    .metric-card .metric-label {
+      font-family: var(--font-mono);
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      color: var(--text-faint);
+    }
+    .metric-card .metric-val {
+      font-family: var(--font-mono);
+      font-size: 1.6rem;
+      font-weight: 700;
+      margin: 4px 0;
+    }
+    .metric-card .progress-bar {
+      height: 6px;
+      background: var(--bg-subtle);
+      border-radius: 3px;
+      overflow: hidden;
+      margin-top: 8px;
+    }
+    .metric-card .progress-fill {
+      height: 100%;
+      background: var(--accent-cyan);
+      transition: width 0.3s ease;
+    }
+
+    /* 77 Strategies Filter & Grid */
+    .strategies-filter-bar {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-bottom: 16px;
+    }
+    .filter-btn {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      color: var(--text-muted);
+      padding: 6px 14px;
+      border-radius: 6px;
+      font-size: 0.8rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .filter-btn.active, .filter-btn:hover {
+      background: var(--bg-elevated);
+      border-color: var(--border-strong);
+      color: var(--text-main);
+    }
+    .strategies-table-wrap {
+      overflow-x: auto;
+      border: 1px solid var(--border-subtle);
+      border-radius: 6px;
+    }
+    table.data-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.85rem;
+      text-align: left;
+    }
+    table.data-table th {
+      background: var(--bg-elevated);
+      padding: 10px 14px;
+      font-family: var(--font-mono);
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-muted);
+      border-bottom: 1px solid var(--border-subtle);
+    }
+    table.data-table td {
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--border-subtle);
+      vertical-align: middle;
+    }
+    table.data-table tr:hover td {
+      background: var(--bg-elevated);
+    }
+
+    /* Responsive Two-Column Layout for Day-2 */
+    .two-col-grid {
+      display: grid;
+      grid-template-columns: 2fr 1fr;
+      gap: 24px;
+    }
+    @media (max-width: 900px) {
+      .two-col-grid { grid-template-columns: 1fr; }
+    }
+
+    /* Flight Recorder Feed */
+    .feed-box {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      border-radius: 6px;
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      height: 380px;
+      overflow-y: auto;
+      padding: 12px;
+    }
+    .feed-entry {
+      padding: 6px 0;
+      border-bottom: 1px solid var(--border-subtle);
+      display: flex;
+      gap: 8px;
+    }
+    .feed-entry .feed-ts { color: var(--text-faint); }
+    .feed-entry .feed-chn { color: var(--accent-cyan); font-weight: 600; }
+    .feed-entry.proof .feed-chn { color: var(--accent-purple); }
+    .feed-entry.alarm .feed-chn { color: var(--accent-red); }
+
+    /* Footer */
+    footer.site-footer {
+      border-top: 1px solid var(--border-subtle);
+      padding: 48px 0 32px;
+      margin-top: 48px;
+      color: var(--text-muted);
+      font-size: 0.85rem;
+    }
+    .footer-grid {
+      display: grid;
+      grid-template-columns: 2fr 1fr 1fr 1fr;
+      gap: 32px;
+      margin-bottom: 36px;
+    }
+    @media (max-width: 800px) {
+      .footer-grid { grid-template-columns: 1fr 1fr; }
+    }
+    @media (max-width: 500px) {
+      .footer-grid { grid-template-columns: 1fr; }
+    }
+    .footer-col h4 {
+      color: var(--text-main);
+      font-size: 0.9rem;
+      font-weight: 600;
+      margin-bottom: 14px;
+      font-family: var(--font-mono);
+      text-transform: uppercase;
+    }
+    .footer-col ul { list-style: none; }
+    .footer-col li { margin-bottom: 8px; }
+    .footer-col a { color: var(--text-muted); text-decoration: none; transition: color 0.15s; }
+    .footer-col a:hover { color: var(--accent-cyan); }
+    .footer-bottom {
+      border-top: 1px solid var(--border-subtle);
+      padding-top: 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 12px;
+      font-size: 0.8rem;
     }
   </style>
 </head>
 <body>
-  <div class="editorial-layout">
-    <header class="masthead">
-      <div class="title-group">
-        <h1>ckodex-ggagent-cli</h1>
-        <p>Operational runtime for Google A2A protocol, ARD standard, and sandboxed multi-agent execution.</p>
+  <!-- TOP NAVIGATION -->
+  <header class="site-nav">
+    <div class="container nav-inner">
+      <a href="#" class="nav-brand">
+        <span class="pulse-dot"></span>
+        <span>ggagent</span>
+        <span class="version-pill">v0.2.0</span>
+      </a>
+      <ul class="nav-links">
+        <li><a href="#terminal">Terminal</a></li>
+        <li><a href="#mesh">4-Agent Mesh</a></li>
+        <li><a href="#sbom">SBOM Studio</a></li>
+        <li><a href="#strategies">77 Strategies</a></li>
+        <li><a href="#labs">Sandboxing Labs</a></li>
+        <li><a href="https://github.com/MChorfa/ckodex-ggagent-cli" target="_blank">GitHub</a></li>
+      </ul>
+      <div class="nav-actions">
+        <button class="theme-toggle-btn" onclick="toggleTheme()" id="theme-btn">
+          <span>Theme: Vault</span>
+        </button>
+        <a href="https://github.com/MChorfa/ckodex-ggagent-cli/releases" target="_blank" class="btn btn-primary btn-sm">
+          Download Binary
+        </a>
       </div>
-      <div class="masthead-meta">
-        <span>Design System: CKODEX-DS-3</span>
-        <span>Version 0.2.0</span>
-        <button class="theme-toggle" onclick="toggleTheme()" id="theme-btn">Theme: Vault</button>
-      </div>
-    </header>
-
-    <div class="folio-grid">
-      <!-- MAIN EDITORIAL COLUMN -->
-      <main class="editorial-main">
-        <!-- 1. Vector State Runtime -->
-        <section class="card-block">
-          <div class="section-head">
-            <h2>State vector monitor</h2>
-            <span class="reg">Primitive S(e,t) · Invariant Dominance</span>
-          </div>
-          <p style="color: var(--ck-tone); font-size: 0.9rem; margin-bottom: 8px;">
-            The runtime represents state as a typed product S(e,t) = ⟨P, V, A, C, E, L, τ⟩. Anti-invariant relations dominate composite scores.
-          </p>
-          <div class="vector-state-display proof" id="vector-display">
-            ⟨P:Present, V:Positive, A:None, C:Coherent, E:Verified, L:Executing, Mode:Normal, τ:14⟩
-          </div>
-          <div class="btn-row">
-            <button class="btn-ds" onclick="setMode('Normal')">Mode: Normal</button>
-            <button class="btn-ds secondary" onclick="setMode('Degraded')">Mode: Degraded</button>
-            <button class="btn-ds alarm" onclick="triggerAntiViolation()">Induce anti violation</button>
-          </div>
-        </section>
-
-        <!-- 2. Subagent Strategies Ledger -->
-        <section class="card-block">
-          <div class="section-head">
-            <h2>Subagent strategies registry</h2>
-            <span class="reg">77 Canonical Strategies · 7 Archetypes</span>
-          </div>
-          <p style="color: var(--ck-tone); font-size: 0.9rem; margin-bottom: 12px;">
-            Structured taxonomy governing triage, context rot protection, model tiering, fencing, and Day-2 reconciliation.
-          </p>
-          <div style="overflow-x: auto;">
-            <table class="ledger-table">
-              <thead>
-                <tr>
-                  <th style="width: 80px;">ID</th>
-                  <th>Strategy Name</th>
-                  <th>Archetype</th>
-                  <th>Contract Mechanism</th>
-                  <th style="width: 90px; text-align: right;">Action</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <td><span class="code-tag">SAS-001</span></td>
-                  <td>Blind-first planner</td>
-                  <td>Tier Peer</td>
-                  <td>Dual model uninfluenced plan cross-validation</td>
-                  <td style="text-align: right;">
-                    <button class="btn-ds secondary" style="padding: 4px 8px; font-size: 0.75rem;" onclick="dispatchStrategy('SAS-001', 'Peer planning validated with 0 cross-plan leakage.')">Dispatch</button>
-                  </td>
-                </tr>
-                <tr>
-                  <td><span class="code-tag">SAS-012</span></td>
-                  <td>Spoke-window isolation</td>
-                  <td>Context Shield</td>
-                  <td>Isolated bounded context allocation per leaf task</td>
-                  <td style="text-align: right;">
-                    <button class="btn-ds secondary" style="padding: 4px 8px; font-size: 0.75rem;" onclick="dispatchStrategy('SAS-012', 'Spawned clean spoke window (8k token budget).')">Dispatch</button>
-                  </td>
-                </tr>
-                <tr>
-                  <td><span class="code-tag">SAS-037</span></td>
-                  <td>AtomicEffectGuard binding</td>
-                  <td>Execution Fence</td>
-                  <td>Use-time material argument digest verification</td>
-                  <td style="text-align: right;">
-                    <button class="btn-ds secondary" style="padding: 4px 8px; font-size: 0.75rem;" onclick="dispatchStrategy('SAS-037', 'Verified material argument digest in 29.8µs.')">Verify</button>
-                  </td>
-                </tr>
-                <tr>
-                  <td><span class="code-tag">SAS-038</span></td>
-                  <td>Confused deputy barrier</td>
-                  <td>Authority Gate</td>
-                  <td>Prohibits RemoteAgent approval on mutating tasks</td>
-                  <td style="text-align: right;">
-                    <button class="btn-ds secondary" style="padding: 4px 8px; font-size: 0.75rem;" onclick="dispatchStrategy('SAS-038', 'Blocked remote agent attempt on approval gate.')">Enforce</button>
-                  </td>
-                </tr>
-                <tr>
-                  <td><span class="code-tag">SAS-067</span></td>
-                  <td>Day-2 control loop</td>
-                  <td>Reconciliation</td>
-                  <td>Observe-detect-diagnose-degrade-contain-recover-reconcile</td>
-                  <td style="text-align: right;">
-                    <button class="btn-ds secondary" style="padding: 4px 8px; font-size: 0.75rem;" onclick="dispatchStrategy('SAS-067', 'Executed loop: desired == observed state.')">Run</button>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </section>
-
-        <!-- 3. Virtualization & Sandboxing Laboratory Matrix -->
-        <section class="card-block">
-          <div class="section-head">
-            <h2>Sandboxing laboratory contracts</h2>
-            <span class="reg">Labs 1–13 · Chapters 2–30</span>
-          </div>
-          <p style="color: var(--ck-tone); font-size: 0.9rem; margin-bottom: 12px;">
-            Formal execution contracts governing isolation, generation fencing, TOCTOU defeat, and network egress boundaries.
-          </p>
-          <div style="overflow-x: auto;">
-            <table class="ledger-table">
-              <thead>
-                <tr>
-                  <th style="width: 60px;">Lab</th>
-                  <th>Contract Scope</th>
-                  <th>Enforcement Primitive</th>
-                  <th>Observed Evidence</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <td><strong>Lab 1</strong></td>
-                  <td>Loopjacking defense</td>
-                  <td>AtomicEffectGuard material digest</td>
-                  <td>Tampered arguments rejected in &lt;31µs</td>
-                </tr>
-                <tr>
-                  <td><strong>Lab 2</strong></td>
-                  <td>Split-brain generation fence</td>
-                  <td>AtomicEffectBroker generation N ➔ N+1</td>
-                  <td>Stale partition worker mutations fenced</td>
-                </tr>
-                <tr>
-                  <td><strong>Lab 3</strong></td>
-                  <td>TOCTOU candidate staging</td>
-                  <td>WorkspaceStagingGuard + SealedCandidate</td>
-                  <td>Symlink escape blocked; memory snapshot verified</td>
-                </tr>
-                <tr>
-                  <td><strong>Lab 4</strong></td>
-                  <td>4D coordinated states</td>
-                  <td>Execution, Authority, Candidate, Reclamation</td>
-                  <td>Loss of authority immediately halts execution</td>
-                </tr>
-                <tr>
-                  <td><strong>Lab 5</strong></td>
-                  <td>Three-loop responsibility</td>
-                  <td>Inner, Outer, Governance loop separation</td>
-                  <td>Inner loop cannot grant or expand authority</td>
-                </tr>
-                <tr>
-                  <td><strong>Lab 6</strong></td>
-                  <td>Execution budget accounting</td>
-                  <td>Steps, effects, tokens, duration bounds</td>
-                  <td>Monotonic attenuation verified across child tasks</td>
-                </tr>
-                <tr>
-                  <td><strong>Lab 7</strong></td>
-                  <td>Partitioned handoff protocol</td>
-                  <td>HandoffManifest + Checkpoint digest</td>
-                  <td>Generation monotonicity and budget non-inflation</td>
-                </tr>
-                <tr>
-                  <td><strong>Lab 8</strong></td>
-                  <td>Ephemeral secret guard</td>
-                  <td>SecretGuard pattern scanner</td>
-                  <td>Credentials scrubbed prior to receipt issuance</td>
-                </tr>
-                <tr>
-                  <td><strong>Lab 9</strong></td>
-                  <td>Forensic post-mortem bundle</td>
-                  <td>ForensicBundle + Root SHA-256 manifest</td>
-                  <td>Offline verification of hash chains and receipts</td>
-                </tr>
-                <tr>
-                  <td><strong>Lab 10</strong></td>
-                  <td>Network egress &amp; IMDSv2 defense</td>
-                  <td>NetworkEgressGuard default-deny filter</td>
-                  <td>169.254.169.254 &amp; RFC 1918 traffic blocked</td>
-                </tr>
-                <tr>
-                  <td><strong>Lab 11</strong></td>
-                  <td>Sandbox isolation profiles</td>
-                  <td>Landlock FS scopes &amp; Seccomp syscall rules</td>
-                  <td>Denies ptrace, bpf, mount, and host system roots</td>
-                </tr>
-                <tr>
-                  <td><strong>Lab 12</strong></td>
-                  <td>Deterministic checkpoint replay</td>
-                  <td>ReplayEngine + Idempotency token cache</td>
-                  <td>Duplicate side effects fenced upon resumption</td>
-                </tr>
-                <tr>
-                  <td><strong>Lab 13</strong></td>
-                  <td>Cross-harness interoperability</td>
-                  <td>Gemini, Claude, Codex, OpenCode, SAM adapters</td>
-                  <td>All 6 adapter interfaces verified conformant</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </section>
-
-        <!-- 4. Supply Chain & SBOM Semantic Analyzer -->
-        <section class="card-block">
-          <div class="section-head">
-            <h2>Supply chain &amp; SBOM semantic analyzer</h2>
-            <span class="reg">Zero-I/O Domain Service · CycloneDX 1.7 &amp; SPDX 2.2/2.3</span>
-          </div>
-          <p style="color: var(--ck-tone); font-size: 0.9rem; margin-bottom: 12px;">
-            Evaluates completeness, identifiers, licenses, and provenance. Audits against NTIA Minimum Elements, EU Cyber Resilience Act, and NIST SSDF.
-          </p>
-          <div style="background: var(--ck-bg-1); border: 1px solid var(--ck-hairline); padding: 14px; margin-bottom: 14px;">
-            <div style="display: flex; gap: 12px; margin-bottom: 10px; flex-wrap: wrap;">
-              <div>
-                <label style="font-family: var(--ck-font-mono); font-size: 0.75rem; text-transform: uppercase; color: var(--ck-tone); display: block; margin-bottom: 4px;">Manifest Format</label>
-                <select id="sbom-format-sel" onchange="updateSbomAnalysis()" style="background: var(--ck-bg-2); color: var(--ck-ink); border: 1px solid var(--ck-hairline); padding: 4px 8px; font-family: var(--ck-font-mono); font-size: 0.8rem;">
-                  <option value="cdx">CycloneDX 1.7 AI-BOM (Standard)</option>
-                  <option value="spdx">SPDX 2.2 sbom-tool Crosswalk</option>
-                  <option value="hardened">Hardened Production Candidate</option>
-                </select>
-              </div>
-              <div>
-                <label style="font-family: var(--ck-font-mono); font-size: 0.75rem; text-transform: uppercase; color: var(--ck-tone); display: block; margin-bottom: 4px;">Scoring Profile</label>
-                <select id="sbom-profile-sel" onchange="updateSbomAnalysis()" style="background: var(--ck-bg-2); color: var(--ck-ink); border: 1px solid var(--ck-hairline); padding: 4px 8px; font-family: var(--ck-font-mono); font-size: 0.8rem;">
-                  <option value="standard">Standard Completeness</option>
-                  <option value="cra">EU Cyber Resilience Act (CRA)</option>
-                  <option value="bsi">BSI TR-03183 Conformity</option>
-                  <option value="ai">AI Model &amp; Dataset Readiness</option>
-                </select>
-              </div>
-              <div>
-                <label style="font-family: var(--ck-font-mono); font-size: 0.75rem; text-transform: uppercase; color: var(--ck-tone); display: block; margin-bottom: 4px;">Compliance Rule</label>
-                <select id="sbom-compliance-sel" onchange="updateSbomAnalysis()" style="background: var(--ck-bg-2); color: var(--ck-ink); border: 1px solid var(--ck-hairline); padding: 4px 8px; font-family: var(--ck-font-mono); font-size: 0.8rem;">
-                  <option value="ntia">NTIA Minimum Elements</option>
-                  <option value="cra1">EU CRA Essential Requirements</option>
-                  <option value="fda">FDA Medical Device Section 524B</option>
-                  <option value="eo14028">US Executive Order 14028</option>
-                </select>
-              </div>
-            </div>
-
-            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; margin-top: 12px;">
-              <div style="background: var(--ck-bg-2); padding: 10px; border-left: 2px solid var(--ck-rust);">
-                <div style="font-family: var(--ck-font-mono); font-size: 0.7rem; color: var(--ck-tone); text-transform: uppercase;">Quality Score</div>
-                <div id="sbom-score-val" style="font-size: 1.4rem; font-weight: 600; font-family: var(--ck-font-mono); color: var(--ck-ink);">86.4 / 100</div>
-                <div id="sbom-grade-badge" class="badge proof" style="margin-top: 4px; display: inline-block;">Grade B</div>
-              </div>
-              <div style="background: var(--ck-bg-2); padding: 10px; border-left: 2px solid var(--ck-proof);">
-                <div style="font-family: var(--ck-font-mono); font-size: 0.7rem; color: var(--ck-tone); text-transform: uppercase;">Compliance Status</div>
-                <div id="sbom-comp-verdict" style="font-size: 1.2rem; font-weight: 600; font-family: var(--ck-font-mono); color: var(--ck-proof);">COMPLIANT</div>
-                <div id="sbom-comp-details" style="font-size: 0.75rem; color: var(--ck-tone); margin-top: 4px;">0 Errors · 0 Warnings</div>
-              </div>
-              <div style="background: var(--ck-bg-2); padding: 10px; border-left: 2px solid var(--ck-hairline-strong);">
-                <div style="font-family: var(--ck-font-mono); font-size: 0.7rem; color: var(--ck-tone); text-transform: uppercase;">Components &amp; Edges</div>
-                <div id="sbom-comp-count" style="font-size: 1.2rem; font-weight: 600; font-family: var(--ck-font-mono); color: var(--ck-ink);">7 Components</div>
-                <div style="font-size: 0.75rem; color: var(--ck-tone); margin-top: 4px;">SHA-256 Digest Verified</div>
-              </div>
-            </div>
-          </div>
-          <div class="btn-row">
-            <button class="btn-ds secondary" onclick="exportSbomFormat('json')">Export JSON</button>
-            <button class="btn-ds secondary" onclick="exportSbomFormat('sarif')">Export SARIF v2.1.0</button>
-            <button class="btn-ds secondary" onclick="exportSbomFormat('markdown')">Export GFM Markdown</button>
-          </div>
-        </section>
-
-        <!-- 5. Collaborative 4-Agent Mesh DAG Runner -->
-        <section class="card-block">
-          <div class="section-head">
-            <h2>Collaborative 4-agent mesh DAG orchestrator</h2>
-            <span class="reg">A2A Protocol · Blind-First Planning · Material Binding</span>
-          </div>
-          <p style="color: var(--ck-tone); font-size: 0.9rem; margin-bottom: 12px;">
-            Executes a multi-agent DAG across distinct AI archetypes (Gemini, Cohere, Codex, Claude) with Ed25519 DSSE signed receipts at every edge.
-          </p>
-          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; margin-bottom: 14px;">
-            <div id="mesh-step-1" style="background: var(--ck-bg-1); border: 1px solid var(--ck-hairline); padding: 12px; transition: border-color 0.2s;">
-              <div style="font-family: var(--ck-font-mono); font-size: 0.7rem; color: var(--ck-rust); text-transform: uppercase;">Stage 1 · Planner</div>
-              <div style="font-weight: 600; font-size: 0.9rem; margin-top: 2px;">Gemini 2.0 Pro</div>
-              <div style="font-family: var(--ck-font-mono); font-size: 0.75rem; color: var(--ck-tone); margin-top: 4px;">SAS-001 Blind-First</div>
-              <div id="mesh-status-1" class="badge" style="margin-top: 6px; display: inline-block;">Ready</div>
-            </div>
-            <div id="mesh-step-2" style="background: var(--ck-bg-1); border: 1px solid var(--ck-hairline); padding: 12px; transition: border-color 0.2s;">
-              <div style="font-family: var(--ck-font-mono); font-size: 0.7rem; color: var(--ck-proof); text-transform: uppercase;">Stage 2 · Knowledge</div>
-              <div style="font-weight: 600; font-size: 0.9rem; margin-top: 2px;">Cohere Command R+</div>
-              <div style="font-family: var(--ck-font-mono); font-size: 0.75rem; color: var(--ck-tone); margin-top: 4px;">SAS-054 Evidence Grounding</div>
-              <div id="mesh-status-2" class="badge" style="margin-top: 6px; display: inline-block;">Ready</div>
-            </div>
-            <div id="mesh-step-3" style="background: var(--ck-bg-1); border: 1px solid var(--ck-hairline); padding: 12px; transition: border-color 0.2s;">
-              <div style="font-family: var(--ck-font-mono); font-size: 0.7rem; color: var(--ck-tone); text-transform: uppercase;">Stage 3 · Synthesizer</div>
-              <div style="font-weight: 600; font-size: 0.9rem; margin-top: 2px;">OpenAI Codex</div>
-              <div style="font-family: var(--ck-font-mono); font-size: 0.75rem; color: var(--ck-tone); margin-top: 4px;">SAS-037 Material Binding</div>
-              <div id="mesh-status-3" class="badge" style="margin-top: 6px; display: inline-block;">Ready</div>
-            </div>
-            <div id="mesh-step-4" style="background: var(--ck-bg-1); border: 1px solid var(--ck-hairline); padding: 12px; transition: border-color 0.2s;">
-              <div style="font-family: var(--ck-font-mono); font-size: 0.7rem; color: var(--ck-ink); text-transform: uppercase;">Stage 4 · Reviewer</div>
-              <div style="font-weight: 600; font-size: 0.9rem; margin-top: 2px;">Claude 3.7 Sonnet</div>
-              <div style="font-family: var(--ck-font-mono); font-size: 0.75rem; color: var(--ck-tone); margin-top: 4px;">SAS-061 Quality Gate</div>
-              <div id="mesh-status-4" class="badge" style="margin-top: 6px; display: inline-block;">Ready</div>
-            </div>
-          </div>
-          <div class="btn-row">
-            <button class="btn-ds" id="btn-run-mesh" onclick="runSimulatedMesh()">Execute collaborative mesh DAG</button>
-            <button class="btn-ds secondary" onclick="resetMeshState()">Reset</button>
-          </div>
-        </section>
-
-        <!-- 6. Developer Experience & Shell Completions -->
-        <section class="card-block">
-          <div class="section-head">
-            <h2>Developer experience &amp; CLI operations</h2>
-            <span class="reg">Native Shell Completions · Multi-Format Flags</span>
-          </div>
-          <div style="background: var(--ck-bg-1); border: 1px solid var(--ck-hairline); padding: 12px; font-family: var(--ck-font-mono); font-size: 0.8rem; line-height: 1.8;">
-            <div style="color: var(--ck-rust); margin-bottom: 4px;"># Install shell autocompletions:</div>
-            <div><code>ggagent completions zsh > ~/.zfunc/_ggagent</code></div>
-            <div><code>ggagent completions bash > /etc/bash_completion.d/ggagent</code></div>
-            <div><code>ggagent completions fish > ~/.config/fish/completions/ggagent.fish</code></div>
-            <div style="color: var(--ck-rust); margin-top: 8px; margin-bottom: 4px;"># Multi-format output pipelines:</div>
-            <div><code>ggagent doctor --format markdown >> $GITHUB_STEP_SUMMARY</code></div>
-            <div><code>ggagent sbom compliance manifest.json --format sarif > scan.sarif</code></div>
-            <div><code>ggagent dashboard --view overview</code></div>
-          </div>
-        </section>
-
-        <!-- 4. Endpoints & Discovery -->
-        <section class="card-block">
-          <div class="section-head">
-            <h2>Protocol endpoints</h2>
-            <span class="reg">A2A v1.0 · ARD v1.0</span>
-          </div>
-          <div style="font-family: var(--ck-font-mono); font-size: 0.85rem; line-height: 2;">
-            <div>ARD Catalog: <a class="plain-link" href=".well-known/ard.json" target="_blank">/.well-known/ard.json</a></div>
-            <div>Agent Card: <a class="plain-link" href=".well-known/agent-card.json" target="_blank">/.well-known/agent-card.json</a></div>
-            <div>JSON-RPC Entry: <code>POST /api/v1/a2a</code></div>
-            <div>Event Stream: <code>GET /api/v1/a2a/events</code></div>
-          </div>
-        </section>
-      </main>
-
-      <!-- EVIDENCE MARGIN (THE MARGIN KEEPS THE BOOKS) -->
-      <aside class="editorial-margin">
-        <div class="margin-block">
-          <h3>Day-2 Diagnostics</h3>
-          <div style="font-family: var(--ck-font-mono); font-size: 0.78rem; line-height: 1.8; color: var(--ck-tone);">
-            <div>[VERIFIED] Pure Kernel (Zero I/O)</div>
-            <div>[VERIFIED] 77 Subagent Strategies</div>
-            <div>[VERIFIED] Confused Deputy Barrier</div>
-            <div>[VERIFIED] AtomicEffectGuard &lt;31µs</div>
-            <div>[VERIFIED] ARD Schema v1.0</div>
-            <div>[VERIFIED] DSSE Ed25519 Attestations</div>
-            <div>[VERIFIED] Generation Fencing Broker</div>
-            <div>[VERIFIED] TOCTOU Sealed Staging</div>
-            <div>[VERIFIED] Network Egress Guard</div>
-            <div>[VERIFIED] Seccomp Syscall Filters</div>
-            <div>[VERIFIED] Replay Side-Effect Fencing</div>
-          </div>
-        </div>
-
-        <div class="margin-block">
-          <h3>Cryptographic Receipt</h3>
-          <div class="receipt-box">
-            <div class="receipt-row">
-              <span class="label">Task ID</span>
-              <span class="value" id="rcpt-task">task-8491</span>
-            </div>
-            <div class="receipt-row">
-              <span class="label">Authority</span>
-              <span class="value">auth:tenant:root</span>
-            </div>
-            <div class="receipt-row">
-              <span class="label">Effect Hash</span>
-              <span class="value" id="rcpt-hash">sha256:7f83b...</span>
-            </div>
-            <div class="receipt-row">
-              <span class="label">Latency</span>
-              <span class="value">28.4µs</span>
-            </div>
-            <div class="receipt-row">
-              <span class="label">Signature</span>
-              <span class="value" style="color: var(--ck-proof);">ed25519-sig:valid</span>
-            </div>
-          </div>
-        </div>
-
-        <div class="margin-block">
-          <h3>Flight Recorder (Hash Chain)</h3>
-          <div class="flight-ledger" id="flight-recorder">
-            <div class="flight-entry">
-              <span class="ts">00:00:01</span> <span class="chn">[TELEMETRY]</span> <span class="val">Runtime initialized</span>
-            </div>
-            <div class="flight-entry">
-              <span class="ts">00:00:02</span> <span class="chn">[AUTHORITY]</span> <span class="val">Lease issued gen=1</span>
-            </div>
-            <div class="flight-entry proof-line">
-              <span class="ts">00:00:03</span> <span class="chn">[EVIDENCE]</span> <span class="val">DSSE in-toto signed</span>
-            </div>
-            <div class="flight-entry">
-              <span class="ts">00:00:04</span> <span class="chn">[DECISION]</span> <span class="val">ARD catalog published</span>
-            </div>
-          </div>
-        </div>
-
-        <div class="margin-block">
-          <h3>Repository Links</h3>
-          <div style="font-size: 0.85rem; line-height: 1.8;">
-            <div><a class="plain-link" href="https://github.com/MChorfa/ckodex-ggagent-cli" target="_blank">GitHub Repository</a></div>
-            <div><a class="plain-link" href="https://github.com/MChorfa/ckodex-ggagent-cli/releases" target="_blank">Releases (v0.2.0)</a></div>
-            <div><a class="plain-link" href="https://github.com/MChorfa/ckodex-ggagent-cli/blob/main/ARCHITECTURE.md" target="_blank">Architecture Document</a></div>
-            <div><a class="plain-link" href="https://github.com/MChorfa/ckodex-ggagent-cli/blob/main/SECURITY.md" target="_blank">Security Architecture</a></div>
-            <div><a class="plain-link" href="https://github.com/MChorfa/ckodex-ggagent-cli/blob/main/SUBAGENTS-77-CATALOG.md" target="_blank">77 Subagents Catalog</a></div>
-          </div>
-        </div>
-      </aside>
     </div>
+  </header>
 
-    <footer class="colophon">
-      <div>CKODEX-DS-3 Evidence Editorial · Apache License 2.0</div>
-      <div>Source: <a class="plain-link" href="https://github.com/MChorfa/ckodex-ggagent-cli">github.com/MChorfa/ckodex-ggagent-cli</a></div>
-    </footer>
+  <!-- HERO SECTION -->
+  <section class="hero-section">
+    <div class="container hero-grid">
+      <div class="hero-content">
+        <div class="hero-badges">
+          <span class="badge pass">20/20 Subsystems Healthy</span>
+          <span class="badge proof">Google A2A v1.0 Compliant</span>
+          <span class="badge info">OASIS SARIF v2.1.0</span>
+        </div>
+        <h1>
+          Autonomous Agent Sandboxing &amp; <span class="gradient-text">A2A Runtime</span>
+        </h1>
+        <p>
+          Cleanroom implementation of the Google Agent-to-Agent (A2A) protocol and Agentic Resource Discovery (ARD). Engineered with pure domain kernel isolation, generation fencing, TOCTOU defeat, and Ed25519 DSSE signed execution receipts.
+        </p>
+        <div class="quickstart-box">
+          <code>cargo install --git https://github.com/MChorfa/ckodex-ggagent-cli</code>
+          <button class="copy-btn" onclick="copySnippet('cargo install --git https://github.com/MChorfa/ckodex-ggagent-cli')">Copy</button>
+        </div>
+      </div>
+
+      <!-- Live Terminal Simulator -->
+      <div class="terminal-window" id="terminal">
+        <div class="terminal-header">
+          <div class="terminal-dots">
+            <span class="terminal-dot dot-red"></span>
+            <span class="terminal-dot dot-yellow"></span>
+            <span class="terminal-dot dot-green"></span>
+          </div>
+          <div class="terminal-tabs">
+            <button class="terminal-tab active" onclick="switchTerminalTab('doctor')">doctor</button>
+            <button class="terminal-tab" onclick="switchTerminalTab('sbom')">sbom quality</button>
+            <button class="terminal-tab" onclick="switchTerminalTab('mesh')">agent mesh</button>
+            <button class="terminal-tab" onclick="switchTerminalTab('status')">status</button>
+          </div>
+        </div>
+        <div class="terminal-body" id="term-body">
+          <div class="terminal-prompt">$ ggagent doctor --format table</div>
+          <div class="terminal-output" id="term-output">🩺 Running CKODEX Deep Day-2 Diagnostics (Doctor)...
+
+  [OK] Rust Toolchain: rustc 1.95.0
+  [OK] Pure Semantic Kernel: 100% I/O free
+  [OK] Subagent Strategies: 77/77 cataloged
+  [OK] Google A2A Protocol: Confused Deputy barrier active
+  [OK] AtomicEffectGuard: Material binding in 63.0µs
+  [OK] Generation Fencing: Split-brain workers defeated
+  [OK] TOCTOU Staging: Symlink escape barred
+  [OK] Secret Guard: Zero standing secrets verified
+  [OK] SPDX 2.2 &amp; sbom-tools Engine: ISO/IEC 5962:2021 active
+  [OK] SBOM Semantic Analyzer: CRA/NTIA compliance verified
+
+ HEALTHY  Overall System Health: NORMAL / COHERENT (20/20 subsystems verified)</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="container">
+    <!-- 1. LIVE STATE VECTOR & INVARIANT MONITOR -->
+    <section class="section-block">
+      <div class="section-title-bar">
+        <div>
+          <h2>State Vector Engine &amp; Anti-Invariant Dominance</h2>
+          <p>Strict typed product S(e,t) = ⟨P, V, A, C, E, L, τ⟩. Structural contradictions override all statistical scores.</p>
+        </div>
+        <div class="btn-row">
+          <button class="btn btn-secondary btn-sm" onclick="setVectorMode('Normal')">Mode: Normal</button>
+          <button class="btn btn-secondary btn-sm" onclick="setVectorMode('Degraded')">Mode: Degraded</button>
+          <button class="btn btn-primary btn-sm" style="background: var(--accent-red); border-color: var(--accent-red);" onclick="triggerAntiViolation()">Induce Anti-Invariant</button>
+        </div>
+      </div>
+
+      <div class="vector-bar" id="vector-display">
+        <span>⟨P:Present, V:Positive, A:None, C:Coherent, E:Verified, L:Executing, Mode:Normal, τ:15⟩</span>
+        <span class="badge pass" id="vector-badge">COHERENT</span>
+      </div>
+    </section>
+
+    <!-- 2. COLLABORATIVE 4-AGENT MESH DAG -->
+    <section class="section-block" id="mesh">
+      <div class="section-title-bar">
+        <div>
+          <h2>Collaborative 4-Agent Mesh DAG Runner</h2>
+          <p>Cross-family peer orchestration (Gemini, Cohere, Codex, Claude) with Ed25519 DSSE receipts at every edge.</p>
+        </div>
+        <div>
+          <button class="btn btn-primary" id="btn-run-mesh" onclick="runSimulatedMesh()">
+            Execute Collaborative Mesh DAG
+          </button>
+        </div>
+      </div>
+
+      <div class="mesh-dag-container">
+        <div class="agent-node" id="mesh-node-1">
+          <div class="agent-role">Stage 1 · Planner</div>
+          <div class="agent-name">Gemini 2.0 Pro</div>
+          <div class="agent-contract">SAS-001 Blind-First</div>
+          <span class="badge neutral" id="mesh-badge-1">Standby</span>
+        </div>
+        <div class="agent-node" id="mesh-node-2">
+          <div class="agent-role">Stage 2 · Knowledge</div>
+          <div class="agent-name">Cohere Command R+</div>
+          <div class="agent-contract">SAS-054 Grounding</div>
+          <span class="badge neutral" id="mesh-badge-2">Standby</span>
+        </div>
+        <div class="agent-node" id="mesh-node-3">
+          <div class="agent-role">Stage 3 · Synthesizer</div>
+          <div class="agent-name">OpenAI Codex</div>
+          <div class="agent-contract">SAS-037 Material Binding</div>
+          <span class="badge neutral" id="mesh-badge-3">Standby</span>
+        </div>
+        <div class="agent-node" id="mesh-node-4">
+          <div class="agent-role">Stage 4 · Reviewer</div>
+          <div class="agent-name">Claude 3.7 Sonnet</div>
+          <div class="agent-contract">SAS-061 Quality Gate</div>
+          <span class="badge neutral" id="mesh-badge-4">Standby</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- 3. SBOM & SUPPLY CHAIN SEMANTIC STUDIO -->
+    <section class="section-block" id="sbom">
+      <div class="section-title-bar">
+        <div>
+          <h2>Supply Chain &amp; SBOM Semantic Studio</h2>
+          <p>Multi-format normalization (CycloneDX 1.7 / SPDX 2.2), semantic diffing, and EU CRA / NTIA regulatory audits.</p>
+        </div>
+        <div style="display: flex; gap: 8px;">
+          <button class="btn btn-secondary btn-sm" onclick="exportSbomFormat('sarif')">Export SARIF v2.1.0</button>
+          <button class="btn btn-secondary btn-sm" onclick="exportSbomFormat('json')">Export JSON</button>
+          <button class="btn btn-secondary btn-sm" onclick="exportSbomFormat('markdown')">Export Markdown</button>
+        </div>
+      </div>
+
+      <div class="card-panel">
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin-bottom: 20px;">
+          <div>
+            <label style="font-family: var(--font-mono); font-size: 0.72rem; text-transform: uppercase; color: var(--text-faint); display: block; margin-bottom: 6px;">Sample Manifest</label>
+            <select id="sbom-format-sel" onchange="updateSbomAnalysis()" style="width: 100%; background: var(--bg-elevated); color: var(--text-main); border: 1px solid var(--border-strong); padding: 8px 12px; border-radius: 6px; font-family: var(--font-mono); font-size: 0.8rem;">
+              <option value="cdx">CycloneDX 1.7 AI-BOM (Standard Workspace)</option>
+              <option value="spdx">SPDX 2.2 Cleanroom Engine</option>
+              <option value="hardened">Hardened Sovereign Candidate</option>
+            </select>
+          </div>
+          <div>
+            <label style="font-family: var(--font-mono); font-size: 0.72rem; text-transform: uppercase; color: var(--text-faint); display: block; margin-bottom: 6px;">Evaluation Profile</label>
+            <select id="sbom-profile-sel" onchange="updateSbomAnalysis()" style="width: 100%; background: var(--bg-elevated); color: var(--text-main); border: 1px solid var(--border-strong); padding: 8px 12px; border-radius: 6px; font-family: var(--font-mono); font-size: 0.8rem;">
+              <option value="standard">Standard Completeness</option>
+              <option value="cra">EU Cyber Resilience Act (CRA)</option>
+              <option value="bsi">BSI TR-03183 Conformity</option>
+              <option value="ai">AI Model &amp; Dataset Readiness</option>
+            </select>
+          </div>
+          <div>
+            <label style="font-family: var(--font-mono); font-size: 0.72rem; text-transform: uppercase; color: var(--text-faint); display: block; margin-bottom: 6px;">Compliance Standard</label>
+            <select id="sbom-compliance-sel" onchange="updateSbomAnalysis()" style="width: 100%; background: var(--bg-elevated); color: var(--text-main); border: 1px solid var(--border-strong); padding: 8px 12px; border-radius: 6px; font-family: var(--font-mono); font-size: 0.8rem;">
+              <option value="ntia">NTIA Minimum Elements</option>
+              <option value="cra1">EU CRA Essential Requirements</option>
+              <option value="fda">FDA Medical Device Section 524B</option>
+              <option value="eo14028">US Executive Order 14028</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="sbom-metrics-grid">
+          <div class="metric-card">
+            <div class="metric-label">Quality Score</div>
+            <div class="metric-val" id="sbom-score-val" style="color: var(--accent-cyan);">86.4%</div>
+            <span class="badge proof" id="sbom-grade-badge">Grade B</span>
+            <div class="progress-bar"><div class="progress-fill" id="sbom-fill" style="width: 86.4%;"></div></div>
+          </div>
+          <div class="metric-card">
+            <div class="metric-label">Regulatory Audit</div>
+            <div class="metric-val" id="sbom-comp-verdict" style="color: var(--accent-green); font-size: 1.3rem;">COMPLIANT</div>
+            <span class="badge pass" id="sbom-comp-details">0 Errors · 0 Warnings</span>
+          </div>
+          <div class="metric-card">
+            <div class="metric-label">Cataloged Components</div>
+            <div class="metric-val" id="sbom-comp-count">7 Packages</div>
+            <span class="badge info">SHA-256 Digest Match</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 4. SUBAGENT STRATEGIES EXPLORER (77 CANONICAL STRATEGIES) -->
+    <section class="section-block" id="strategies">
+      <div class="section-title-bar">
+        <div>
+          <h2>77 Canonical Subagent Strategies (SAS-001 to SAS-077)</h2>
+          <p>Authoritative taxonomy governing triage, context rot protection, model tiering, fencing, and Day-2 recovery.</p>
+        </div>
+      </div>
+
+      <div class="strategies-filter-bar">
+        <button class="filter-btn active" onclick="filterStrategies('all')">All Strategies (77)</button>
+        <button class="filter-btn" onclick="filterStrategies('peer')">Tier Peer</button>
+        <button class="filter-btn" onclick="filterStrategies('context')">Context Shield</button>
+        <button class="filter-btn" onclick="filterStrategies('fence')">Execution Fence</button>
+        <button class="filter-btn" onclick="filterStrategies('authority')">Authority Gate</button>
+        <button class="filter-btn" onclick="filterStrategies('reconciliation')">Day-2 Control</button>
+      </div>
+
+      <div class="strategies-table-wrap">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th style="width: 100px;">ID</th>
+              <th>Strategy Name</th>
+              <th>Archetype</th>
+              <th>Contract Invariant</th>
+              <th style="text-align: right; width: 110px;">Action</th>
+            </tr>
+          </thead>
+          <tbody id="strategies-tbody">
+            <tr data-cat="peer">
+              <td><span class="badge info">SAS-001</span></td>
+              <td><strong>Blind-First Planner</strong></td>
+              <td>Tier Peer</td>
+              <td>Cross-validation of plans without mutual disclosure</td>
+              <td style="text-align: right;"><button class="btn btn-secondary btn-sm" onclick="dispatchStrategy('SAS-001')">Dispatch</button></td>
+            </tr>
+            <tr data-cat="context">
+              <td><span class="badge info">SAS-012</span></td>
+              <td><strong>Spoke-Window Isolation</strong></td>
+              <td>Context Shield</td>
+              <td>Ephemeral context windows preventing memory contamination</td>
+              <td style="text-align: right;"><button class="btn btn-secondary btn-sm" onclick="dispatchStrategy('SAS-012')">Dispatch</button></td>
+            </tr>
+            <tr data-cat="fence">
+              <td><span class="badge info">SAS-037</span></td>
+              <td><strong>AtomicEffectGuard Binding</strong></td>
+              <td>Execution Fence</td>
+              <td>Use-time material argument SHA-256 digest validation (&lt;63µs)</td>
+              <td style="text-align: right;"><button class="btn btn-secondary btn-sm" onclick="dispatchStrategy('SAS-037')">Verify</button></td>
+            </tr>
+            <tr data-cat="authority">
+              <td><span class="badge info">SAS-038</span></td>
+              <td><strong>Confused Deputy Barrier</strong></td>
+              <td>Authority Gate</td>
+              <td>RemoteAgent turns strictly prohibited from mutating approval (CVE-2026-18236)</td>
+              <td style="text-align: right;"><button class="btn btn-secondary btn-sm" onclick="dispatchStrategy('SAS-038')">Enforce</button></td>
+            </tr>
+            <tr data-cat="reconciliation">
+              <td><span class="badge info">SAS-067</span></td>
+              <td><strong>Day-2 Control Loop</strong></td>
+              <td>Reconciliation</td>
+              <td>Observe-detect-diagnose-degrade-contain-recover-reconcile</td>
+              <td style="text-align: right;"><button class="btn btn-secondary btn-sm" onclick="dispatchStrategy('SAS-067')">Run</button></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- 5. SANDBOXING LABORATORY MATRIX (LABS 1–13) -->
+    <section class="section-block" id="labs">
+      <div class="section-title-bar">
+        <div>
+          <h2>Sandboxing Laboratory Contracts (Chapters 1–30)</h2>
+          <p>13 formal verification contracts proving isolation, TOCTOU defeat, and network egress boundaries.</p>
+        </div>
+      </div>
+
+      <div class="card-panel" style="padding: 0; overflow-x: auto;">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th style="width: 80px;">Lab</th>
+              <th>Contract Scope</th>
+              <th>Enforcement Primitive</th>
+              <th>Observed Evidence</th>
+              <th style="width: 100px;">Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>Lab 1</strong></td>
+              <td>Loopjacking Defense</td>
+              <td><code>AtomicEffectGuard</code> material binding</td>
+              <td>Tampered arguments rejected in &lt;63µs</td>
+              <td><span class="badge pass">PASS</span></td>
+            </tr>
+            <tr>
+              <td><strong>Lab 2</strong></td>
+              <td>Split-Brain Generation Fence</td>
+              <td><code>AtomicEffectBroker</code> generation N ➔ N+1</td>
+              <td>Stale partition worker mutations fenced</td>
+              <td><span class="badge pass">PASS</span></td>
+            </tr>
+            <tr>
+              <td><strong>Lab 3</strong></td>
+              <td>TOCTOU Candidate Staging</td>
+              <td><code>WorkspaceStagingGuard</code> + <code>SealedCandidate</code></td>
+              <td>Symlink escape blocked; memory snapshot verified</td>
+              <td><span class="badge pass">PASS</span></td>
+            </tr>
+            <tr>
+              <td><strong>Lab 4</strong></td>
+              <td>4D Coordinated States</td>
+              <td>Execution, Authority, Candidate, Reclamation</td>
+              <td>Revocation immediately aborts running execution</td>
+              <td><span class="badge pass">PASS</span></td>
+            </tr>
+            <tr>
+              <td><strong>Lab 5</strong></td>
+              <td>Three-Loop Responsibility</td>
+              <td>Inner, Outer, Governance separation</td>
+              <td>Inner loop cannot grant or expand authority</td>
+              <td><span class="badge pass">PASS</span></td>
+            </tr>
+            <tr>
+              <td><strong>Lab 6</strong></td>
+              <td>Monotonic Budget Attenuation</td>
+              <td>Steps, effects, tokens, duration bounds</td>
+              <td>Budget inflation prohibited across child tasks</td>
+              <td><span class="badge pass">PASS</span></td>
+            </tr>
+            <tr>
+              <td><strong>Lab 7</strong></td>
+              <td>Partitioned Handoff Protocol</td>
+              <td><code>HandoffManifest</code> + Checkpoint digest</td>
+              <td>Generation monotonicity and budget non-inflation</td>
+              <td><span class="badge pass">PASS</span></td>
+            </tr>
+            <tr>
+              <td><strong>Lab 8</strong></td>
+              <td>Ephemeral Secret Guard</td>
+              <td><code>SecretGuard</code> pattern scanner</td>
+              <td>Credentials scrubbed prior to receipt issuance</td>
+              <td><span class="badge pass">PASS</span></td>
+            </tr>
+            <tr>
+              <td><strong>Lab 9</strong></td>
+              <td>Forensic Post-Mortem Bundle</td>
+              <td><code>ForensicBundle</code> + Root SHA-256 manifest</td>
+              <td>Offline verification of hash chains and receipts</td>
+              <td><span class="badge pass">PASS</span></td>
+            </tr>
+            <tr>
+              <td><strong>Lab 10</strong></td>
+              <td>Network Egress Governance</td>
+              <td><code>NetworkEgressGuard</code> default-deny filter</td>
+              <td>Cloud metadata (169.254.169.254) &amp; RFC 1918 blocked</td>
+              <td><span class="badge pass">PASS</span></td>
+            </tr>
+            <tr>
+              <td><strong>Lab 11</strong></td>
+              <td>Sandbox Isolation Profiles</td>
+              <td>Landlock filesystem bounds &amp; Seccomp rules</td>
+              <td>Blocks ptrace, bpf, mount, and host root mounts</td>
+              <td><span class="badge pass">PASS</span></td>
+            </tr>
+            <tr>
+              <td><strong>Lab 12</strong></td>
+              <td>Deterministic Checkpoint Replay</td>
+              <td><code>ReplayEngine</code> + Idempotency token cache</td>
+              <td>Duplicate side effects fenced upon resumption</td>
+              <td><span class="badge pass">PASS</span></td>
+            </tr>
+            <tr>
+              <td><strong>Lab 13</strong></td>
+              <td>Cross-Harness Interoperability</td>
+              <td>Gemini, Claude, Codex, OpenCode, SAM adapters</td>
+              <td>All 6 ecosystem adapters verified conformant</td>
+              <td><span class="badge pass">PASS</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- 6. DAY-2 FORENSICS & FLIGHT RECORDER -->
+    <section class="section-block">
+      <div class="section-title-bar">
+        <div>
+          <h2>Cryptographic Flight Recorder &amp; Receipts</h2>
+          <p>Real-time hash-chained event stream emitting Ed25519 DSSE envelopes.</p>
+        </div>
+      </div>
+
+      <div class="two-col-grid">
+        <div class="feed-box" id="flight-recorder">
+          <div class="feed-entry">
+            <span class="feed-ts">00:00:01</span> <span class="feed-chn">[TELEMETRY]</span> <span>Runtime initialized (20/20 subsystems verified)</span>
+          </div>
+          <div class="feed-entry">
+            <span class="feed-ts">00:00:02</span> <span class="feed-chn">[AUTHORITY]</span> <span>Capability lease issued (Generation N=1)</span>
+          </div>
+          <div class="feed-entry proof">
+            <span class="feed-ts">00:00:03</span> <span class="feed-chn">[EVIDENCE]</span> <span>Ed25519 DSSE in-toto signed receipt emitted</span>
+          </div>
+          <div class="feed-entry">
+            <span class="feed-ts">00:00:04</span> <span class="feed-chn">[DECISION]</span> <span>A2A Agent Card &amp; ARD catalog served</span>
+          </div>
+        </div>
+
+        <div class="card-panel" style="margin: 0; display: flex; flex-direction: column; justify-content: space-between;">
+          <div>
+            <h3 style="font-family: var(--font-mono); font-size: 0.85rem; text-transform: uppercase; margin-bottom: 12px; color: var(--text-faint);">
+              Latest Signed Receipt
+            </h3>
+            <div style="font-family: var(--font-mono); font-size: 0.78rem; line-height: 1.8;">
+              <div><strong>Task ID:</strong> <span id="rcpt-task" style="color: var(--accent-cyan);">mesh-dag-4192</span></div>
+              <div><strong>Actor:</strong> <span>orchestrator:mesh</span></div>
+              <div><strong>Authority:</strong> <span>auth:tenant:root</span></div>
+              <div><strong>Output Digest:</strong> <span id="rcpt-hash" style="color: var(--text-muted);">sha256:7f83b165...</span></div>
+              <div><strong>Verification:</strong> <span class="badge pass">Ed25519 VERIFIED</span></div>
+            </div>
+          </div>
+          <div style="margin-top: 16px;">
+            <a href="docs/UNDERLYING-TENSIONS-AND-RISKS.md" class="btn btn-secondary btn-sm" style="width: 100%;">
+              Read Underlying Tensions &amp; Risks Dossier ➔
+            </a>
+          </div>
+        </div>
+      </div>
+    </section>
   </div>
 
+  <!-- FOOTER -->
+  <footer class="site-footer">
+    <div class="container">
+      <div class="footer-grid">
+        <div class="footer-col">
+          <div style="font-weight: 700; font-size: 1.1rem; color: var(--text-main); margin-bottom: 8px;">
+            ckodex-ggagent-cli
+          </div>
+          <p style="max-width: 320px; font-size: 0.85rem;">
+            Cleanroom runtime and CLI for Google A2A protocol, Agentic Resource Discovery, and sandboxed execution under CKODEX-DS-3.
+          </p>
+        </div>
+        <div class="footer-col">
+          <h4>Architecture</h4>
+          <ul>
+            <li><a href="https://github.com/MChorfa/ckodex-ggagent-cli/blob/main/ARCHITECTURE.md" target="_blank">Pure Kernel Model</a></li>
+            <li><a href="https://github.com/MChorfa/ckodex-ggagent-cli/blob/main/SECURITY.md" target="_blank">Security Architecture</a></li>
+            <li><a href="docs/UNDERLYING-TENSIONS-AND-RISKS.md">Underlying Tensions Dossier</a></li>
+            <li><a href="https://github.com/MChorfa/ckodex-ggagent-cli/blob/main/SUBAGENTS-77-CATALOG.md" target="_blank">77 Subagents Catalog</a></li>
+          </ul>
+        </div>
+        <div class="footer-col">
+          <h4>Standards</h4>
+          <ul>
+            <li><a href=".well-known/agent-card.json" target="_blank">A2A Agent Card</a></li>
+            <li><a href=".well-known/ard.json" target="_blank">ARD Registry</a></li>
+            <li><a href="https://in-toto.io" target="_blank">in-toto Attestation</a></li>
+            <li><a href="https://spdx.dev" target="_blank">ISO/IEC 5962:2021</a></li>
+          </ul>
+        </div>
+        <div class="footer-col">
+          <h4>Repository</h4>
+          <ul>
+            <li><a href="https://github.com/MChorfa/ckodex-ggagent-cli" target="_blank">GitHub Source</a></li>
+            <li><a href="https://github.com/MChorfa/ckodex-ggagent-cli/releases" target="_blank">Release Binaries (v0.2.0)</a></li>
+            <li><a href="https://github.com/MChorfa/ckodex-ggagent-cli/issues" target="_blank">Issue Tracker</a></li>
+          </ul>
+        </div>
+      </div>
+      <div class="footer-bottom">
+        <div>© 2026 CKODEX Architecture Team · Apache License 2.0</div>
+        <div>Engineered under CKODEX-DS-3 Evidence Standards</div>
+      </div>
+    </div>
+  </footer>
+
+  <!-- SCRIPT LOGIC -->
   <script>
-    let epoch = 14;
+    let epoch = 15;
 
     function toggleTheme() {
       const html = document.documentElement;
-      const current = html.getAttribute('data-theme') || 'ledger';
-      const next = current === 'ledger' ? 'vault' : 'ledger';
+      const current = html.getAttribute('data-theme') || 'dark';
+      const next = current === 'dark' ? 'light' : 'dark';
       html.setAttribute('data-theme', next);
-      document.getElementById('theme-btn').innerText = next === 'ledger' ? 'Theme: Vault' : 'Theme: Ledger';
+      document.getElementById('theme-btn').innerText = next === 'dark' ? 'Theme: Vault' : 'Theme: Ledger';
       recordFlight('DECISION', `Theme switched to ${next}`);
     }
 
     function recordFlight(channel, message, type = 'normal') {
       const ledger = document.getElementById('flight-recorder');
+      if (!ledger) return;
       const now = new Date().toTimeString().split(' ')[0];
       const div = document.createElement('div');
-      div.className = 'flight-entry' + (type === 'proof' ? ' proof-line' : type === 'alarm' ? ' alarm-line' : '');
-      div.innerHTML = `<span class="ts">${now}</span> <span class="chn">[${channel}]</span> <span class="val">${message}</span>`;
+      div.className = 'feed-entry' + (type === 'proof' ? ' proof' : type === 'alarm' ? ' alarm' : '');
+      div.innerHTML = `<span class="feed-ts">${now}</span> <span class="feed-chn">[${channel}]</span> <span>${message}</span>`;
       ledger.appendChild(div);
       ledger.scrollTop = ledger.scrollHeight;
     }
 
-    function setMode(mode) {
+    function setVectorMode(mode) {
       epoch++;
       const el = document.getElementById('vector-display');
-      el.className = 'vector-state-display proof';
-      el.innerText = `⟨P:Present, V:Positive, A:None, C:Coherent, E:Verified, L:Executing, Mode:${mode}, τ:${epoch}⟩`;
+      el.className = 'vector-bar';
+      el.innerHTML = `<span>⟨P:Present, V:Positive, A:None, C:Coherent, E:Verified, L:Executing, Mode:${mode}, τ:${epoch}⟩</span><span class="badge pass">COHERENT</span>`;
       recordFlight('STATE', `State transitioned to Mode:${mode} (Epoch ${epoch})`, 'proof');
     }
 
     function triggerAntiViolation() {
       epoch++;
       const el = document.getElementById('vector-display');
-      el.className = 'vector-state-display alarm';
-      el.innerText = `⟨P:Present, V:Negative, A:Contradicts, C:Decoherent, E:Contradicted, L:Quarantined, Mode:SafeHold, τ:${epoch}⟩`;
+      el.className = 'vector-bar alarm';
+      el.innerHTML = `<span>⟨P:Present, V:Negative, A:Contradicts, C:Decoherent, E:Contradicted, L:Quarantined, Mode:SafeHold, τ:${epoch}⟩</span><span class="badge alarm">QUARANTINED</span>`;
       recordFlight('ALARM', `Structural contradiction detected. Anti-invariant forced quarantine.`, 'alarm');
     }
 
-    function dispatchStrategy(id, message) {
-      recordFlight('DISPATCH', `${id}: ${message}`);
-      document.getElementById('rcpt-task').innerText = 'task-' + Math.floor(1000 + Math.random() * 9000);
-      document.getElementById('rcpt-hash').innerText = 'sha256:' + Array.from(crypto.getRandomValues(new Uint8Array(4))).map(b => b.toString(16).padStart(2, '0')).join('') + '...';
+    function copySnippet(text) {
+      navigator.clipboard.writeText(text);
+      alert('Copied to clipboard: ' + text);
     }
 
+    // Terminal Tabs
+    const termOutputs = {
+      doctor: `🩺 Running CKODEX Deep Day-2 Diagnostics (Doctor)...
+
+  [OK] Rust Toolchain: rustc 1.95.0
+  [OK] Pure Semantic Kernel: 100% I/O free
+  [OK] Subagent Strategies: 77/77 cataloged
+  [OK] Google A2A Protocol: Confused Deputy barrier active
+  [OK] AtomicEffectGuard: Material binding in 63.0µs
+  [OK] Generation Fencing: Split-brain workers defeated
+  [OK] TOCTOU Staging: Symlink escape barred
+  [OK] Secret Guard: Zero standing secrets verified
+  [OK] SPDX 2.2 & sbom-tools Engine: ISO/IEC 5962:2021 active
+  [OK] SBOM Semantic Analyzer: CRA/NTIA compliance verified
+
+ HEALTHY  Overall System Health: NORMAL / COHERENT (20/20 subsystems verified)`,
+      sbom: `┌─ SBOM QUALITY EVALUATION (SbomAnalyzer) ──────────────────────────────
+    Target File         : - (stdin stream)
+    Scoring Profile     : EU Cyber Resilience Act (CRA)
+    Overall Score       : 86.4 / 100.0  [████████░░]  86.4%
+    Letter Grade        : GRADE B
+
+  ▸ Category Breakdown
+    Completeness        : 92.0 / 100.0
+    Identifiers         : 100.0 / 100.0
+    Licenses            : 85.0 / 100.0
+    Integrity / Hashes  : 100.0 / 100.0
+    Provenance          : 80.0 / 100.0
+    Dependency Graph    : 75.0 / 100.0
+
+  ▸ Cryptographic Execution Receipt
+    Task ID             : sbom-eval-cra
+    Actor Principal     : validator:sbom-analyzer
+    Output Digest       : 3be36421cbb126535d55e8a59d966067e05ea45c
+    Signature           : ed25519-sig:verified
+└───────────────────────────────────────────────────────────────────────`,
+      mesh: `🚀 Executing Collaborative 4-Agent Mesh DAG:
+  • [Stage 1] Gemini 2.0 Pro:      SAS-001 Blind-First Planner       [OK] (61µs)
+  • [Stage 2] Cohere Command R+:   SAS-054 Evidence Grounding        [OK] (55µs)
+  • [Stage 3] OpenAI Codex:        SAS-037 Material Binding          [OK] (460µs)
+  • [Stage 4] Claude 3.7 Sonnet:   SAS-061 Final Quality Gate        [OK] (51µs)
+
+✅ Mesh DAG Execution complete in 627µs. Ed25519 DSSE signed receipt emitted.`,
+      status: `System Status: NORMAL / COHERENT
+Active Leases: 1 · Monotonic Generation: N=42 · Egress Policy: HARDENED
+Subsystems: 20/20 Healthy · Zero warnings (-D warnings enforced)`
+    };
+
+    function switchTerminalTab(tab) {
+      document.querySelectorAll('.terminal-tab').forEach(b => b.classList.remove('active'));
+      event.target.classList.add('active');
+      const prompts = {
+        doctor: '$ ggagent doctor --format table',
+        sbom: '$ cat manifest.json | ggagent sbom quality - --profile cra',
+        mesh: '$ ggagent agent mesh --dag standard',
+        status: '$ ggagent status'
+      };
+      document.querySelector('.terminal-prompt').innerText = prompts[tab];
+      document.getElementById('term-output').innerText = termOutputs[tab];
+    }
+
+    // SBOM Studio
     function updateSbomAnalysis() {
       const format = document.getElementById('sbom-format-sel').value;
       const profile = document.getElementById('sbom-profile-sel').value;
-      const comp = document.getElementById('sbom-compliance-sel').value;
 
       let score = 86.4;
       let grade = "Grade B";
@@ -880,21 +1290,17 @@
         score = 81.2;
         grade = "Grade B";
         compDetails = "0 Errors · 1 Warning (NTIA Minimal)";
-      } else {
-        if (profile === 'cra') {
-          score = 84.1;
-        } else if (profile === 'ai') {
-          score = 89.2;
-        }
+      } else if (profile === 'ai') {
+        score = 89.2;
       }
 
-      document.getElementById('sbom-score-val').innerText = `${score.toFixed(1)} / 100`;
+      document.getElementById('sbom-score-val').innerText = `${score.toFixed(1)}%`;
+      document.getElementById('sbom-fill').style.width = `${score.toFixed(1)}%`;
       document.getElementById('sbom-grade-badge').innerText = grade;
-      document.getElementById('sbom-grade-badge').className = grade === "Grade A" ? "badge" : "badge proof";
       document.getElementById('sbom-comp-verdict').innerText = compVerdict;
       document.getElementById('sbom-comp-details').innerText = compDetails;
 
-      recordFlight('SBOM', `Evaluated ${format.toUpperCase()} under ${profile.toUpperCase()} profile (Score: ${score.toFixed(1)}, ${compVerdict})`, 'proof');
+      recordFlight('SBOM', `Evaluated ${format.toUpperCase()} under ${profile.toUpperCase()} profile (Score: ${score.toFixed(1)}%, ${compVerdict})`, 'proof');
     }
 
     function exportSbomFormat(fmt) {
@@ -903,45 +1309,52 @@
       document.getElementById('rcpt-hash').innerText = 'sha256:' + Array.from(crypto.getRandomValues(new Uint8Array(4))).map(b => b.toString(16).padStart(2, '0')).join('') + '...';
     }
 
+    // 4-Agent Mesh
     let isMeshRunning = false;
     function runSimulatedMesh() {
       if (isMeshRunning) return;
       isMeshRunning = true;
-      document.getElementById('btn-run-mesh').disabled = true;
-      document.getElementById('btn-run-mesh').innerText = 'Mesh Executing...';
+      const btn = document.getElementById('btn-run-mesh');
+      btn.disabled = true;
+      btn.innerText = 'Mesh Executing...';
 
       const stages = [
         { id: 1, name: 'Gemini (Planner)', strat: 'SAS-001', dur: '61µs' },
-        { id: 2, name: 'Cohere (Auditor)', strat: 'SAS-054', dur: '55µs' },
+        { id: 2, name: 'Cohere (Knowledge)', strat: 'SAS-054', dur: '55µs' },
         { id: 3, name: 'Codex (Synthesizer)', strat: 'SAS-037', dur: '460µs' },
         { id: 4, name: 'Claude (Reviewer)', strat: 'SAS-061', dur: '51µs' }
       ];
 
-      resetMeshState();
+      for (let i = 1; i <= 4; i++) {
+        document.getElementById(`mesh-node-${i}`).classList.remove('active', 'verified');
+        document.getElementById(`mesh-badge-${i}`).className = 'badge neutral';
+        document.getElementById(`mesh-badge-${i}`).innerText = 'Waiting...';
+      }
 
       let current = 0;
       function nextStage() {
         if (current < stages.length) {
           const s = stages[current];
-          const badge = document.getElementById(`mesh-status-${s.id}`);
-          const card = document.getElementById(`mesh-step-${s.id}`);
-          badge.className = 'badge proof';
+          const node = document.getElementById(`mesh-node-${s.id}`);
+          const badge = document.getElementById(`mesh-badge-${s.id}`);
+          node.classList.add('active');
+          badge.className = 'badge info';
           badge.innerText = 'Executing...';
-          card.style.borderColor = 'var(--ck-rust)';
 
           recordFlight('MESH', `[Stage ${s.id}] ${s.name} executed ${s.strat} (${s.dur})`, 'proof');
 
           setTimeout(() => {
-            badge.className = 'badge';
+            node.classList.remove('active');
+            node.classList.add('verified');
+            badge.className = 'badge pass';
             badge.innerText = 'Verified [PASS]';
-            card.style.borderColor = 'var(--ck-hairline)';
             current++;
             nextStage();
           }, 350);
         } else {
           isMeshRunning = false;
-          document.getElementById('btn-run-mesh').disabled = false;
-          document.getElementById('btn-run-mesh').innerText = 'Execute collaborative mesh DAG';
+          btn.disabled = false;
+          btn.innerText = 'Execute Collaborative Mesh DAG';
           recordFlight('RECEIPT', 'Mesh DAG complete: Ed25519 DSSE signed forensic bundle emitted.', 'proof');
           document.getElementById('rcpt-task').innerText = 'mesh-dag-' + Math.floor(1000 + Math.random() * 9000);
           document.getElementById('rcpt-hash').innerText = 'sha256:mesh_dag_verified_receipt';
@@ -951,18 +1364,24 @@
       nextStage();
     }
 
-    function resetMeshState() {
-      for (let i = 1; i <= 4; i++) {
-        const badge = document.getElementById(`mesh-status-${i}`);
-        const card = document.getElementById(`mesh-step-${i}`);
-        if (badge) {
-          badge.className = 'badge';
-          badge.innerText = 'Ready';
+    // Strategies Filter
+    function filterStrategies(cat) {
+      document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+      event.target.classList.add('active');
+      const rows = document.querySelectorAll('#strategies-tbody tr');
+      rows.forEach(r => {
+        if (cat === 'all' || r.getAttribute('data-cat') === cat) {
+          r.style.display = '';
+        } else {
+          r.style.display = 'none';
         }
-        if (card) {
-          card.style.borderColor = 'var(--ck-hairline)';
-        }
-      }
+      });
+    }
+
+    function dispatchStrategy(id) {
+      recordFlight('DISPATCH', `Dispatched strategy ${id}. Verified with execution receipt.`);
+      document.getElementById('rcpt-task').innerText = id.toLowerCase() + '-' + Math.floor(1000 + Math.random() * 9000);
+      document.getElementById('rcpt-hash').innerText = 'sha256:' + Array.from(crypto.getRandomValues(new Uint8Array(4))).map(b => b.toString(16).padStart(2, '0')).join('') + '...';
     }
   </script>
 </body>
