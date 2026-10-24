@@ -494,7 +494,8 @@ fn run_doctor_diagnostics() -> Vec<DiagnosticItem> {
         timestamp: chrono::Utc::now(),
         confirmed_call_id: Some("call-1".into()),
     };
-    let confused_deputy_active = SecurityGuards::verify_approval_principal(&test_msg).is_err();
+    let confused_deputy_active =
+        SecurityGuards::verify_approval_principal(&test_msg, None).is_err();
     checks.push(DiagnosticItem {
         id: 6,
         name: "Google A2A Protocol".into(),
@@ -1092,7 +1093,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 timestamp: Utc::now(),
                                 confirmed_call_id: None,
                             };
-                            match SecurityGuards::verify_approval_principal(&msg) {
+                            let auth_token = if role == A2ARole::HumanUser {
+                                Some("human-auth-proof-local-repl")
+                            } else {
+                                None
+                            };
+                            match SecurityGuards::verify_approval_principal(&msg, auth_token) {
                                 Ok(_) => {
                                     vector_state.record_transition(
                                         Valence::Positive,
@@ -1823,7 +1829,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     timestamp: chrono::Utc::now(),
                     confirmed_call_id: None,
                 };
-                SecurityGuards::verify_approval_principal(&msg)?;
+                let auth_token = if role == A2ARole::HumanUser {
+                    Some("human-auth-proof-cli-verified")
+                } else {
+                    None
+                };
+                SecurityGuards::verify_approval_principal(&msg, auth_token)?;
                 println!(
                     "  [OK] Authority Gate: Verified initiator role '{:?}'",
                     role

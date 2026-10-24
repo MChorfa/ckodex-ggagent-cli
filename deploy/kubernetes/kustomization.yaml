@@ -12,6 +12,7 @@ resources:
   - namespace.yaml
   - serviceaccount-rbac.yaml
   - networkpolicy.yaml
+  - cilium-egress-deny.yaml
   - configmap.yaml
   - deployment.yaml
   - service.yaml

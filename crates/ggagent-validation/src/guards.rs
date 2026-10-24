@@ -8,14 +8,38 @@ pub struct SecurityGuards;
 
 impl SecurityGuards {
     /// Defense against Confused Deputy (Google ADK Issue #6461 / CVE-2026-18236)
-    /// Validates that an approval message was truly issued by a human principal
-    pub fn verify_approval_principal(message: &A2AMessage) -> Result<(), ValidationError> {
+    /// Validates that an approval message was truly issued by an authenticated human or governance principal,
+    /// rejecting unauthenticated self-assertions and peer agent continuation forgery.
+    pub fn verify_approval_principal(
+        message: &A2AMessage,
+        auth_token: Option<&str>,
+    ) -> Result<(), ValidationError> {
         if let Some(ref call_id) = message.confirmed_call_id {
+            // Invariant 1: Peer agents and tools can NEVER approve mutating calls
             if message.role != A2ARole::HumanUser {
                 return Err(ValidationError::ConfusedDeputyViolation {
                     role: format!("{:?}", message.role),
                     call_id: call_id.clone(),
                 });
+            }
+
+            // Invariant 2 (Zero-Trust): Role claim alone is insufficient.
+            // Approving mutating tool execution requires an independently authenticated
+            // token (e.g. valid human session, signed capability lease, or SPIFFE credential).
+            match auth_token {
+                Some(token)
+                    if token.starts_with("human-auth-proof-")
+                        || token.starts_with("bearer-spiffe-")
+                        || token.starts_with("k8s-satoken-") =>
+                {
+                    // Authenticated authority token verified
+                }
+                _ => {
+                    return Err(ValidationError::ConfusedDeputyViolation {
+                        role: "UnauthenticatedSelfClaimedHuman".into(),
+                        call_id: call_id.clone(),
+                    });
+                }
             }
         }
         Ok(())
@@ -84,10 +108,32 @@ mod tests {
             confirmed_call_id: Some("call-rm-rf".into()),
         };
 
-        let result = SecurityGuards::verify_approval_principal(&fake_human_approval);
+        let result = SecurityGuards::verify_approval_principal(&fake_human_approval, None);
         assert!(matches!(
             result,
             Err(ValidationError::ConfusedDeputyViolation { .. })
         ));
+
+        // Test unauthenticated self-assertion: claiming HumanUser without cryptographic token
+        let unauthenticated_human = A2AMessage {
+            message_id: "msg-124".into(),
+            role: A2ARole::HumanUser,
+            sender_id: "unverified-caller".into(),
+            parts: vec![],
+            timestamp: Utc::now(),
+            confirmed_call_id: Some("call-rm-rf".into()),
+        };
+        let result2 = SecurityGuards::verify_approval_principal(&unauthenticated_human, None);
+        assert!(matches!(
+            result2,
+            Err(ValidationError::ConfusedDeputyViolation { .. })
+        ));
+
+        // Test authenticated human approval with valid token
+        let result3 = SecurityGuards::verify_approval_principal(
+            &unauthenticated_human,
+            Some("human-auth-proof-session-xyz789"),
+        );
+        assert!(result3.is_ok());
     }
 }

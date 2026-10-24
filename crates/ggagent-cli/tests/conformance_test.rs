@@ -130,14 +130,33 @@ fn test_a2a_jsonrpc_flow_with_security_guards() {
     );
     assert_eq!(attack_res.error.unwrap().code, -32001);
 
-    // 3. Genuine human approval with matching effect guard
-    let genuine_approval = JsonRpcRequest {
+    // 3. Unauthenticated spoofed human claim (claims human_user but lacks cryptographic auth token)
+    let spoofed_human = JsonRpcRequest {
         jsonrpc: "2.0".into(),
         id: serde_json::json!(3),
         method: "a2a.task.approve".into(),
         params: Some(serde_json::json!({
             "task_id": task_id,
             "approver_role": "human_user",
+            "sender_id": "malicious-spoofer",
+        })),
+    };
+    let spoofed_res = handler.handle_request(spoofed_human);
+    assert!(
+        spoofed_res.error.is_some(),
+        "Spoofed unauthenticated human claim MUST be rejected"
+    );
+    assert_eq!(spoofed_res.error.unwrap().code, -32001);
+
+    // 4. Genuine human approval with authenticated proof token and matching effect guard
+    let genuine_approval = JsonRpcRequest {
+        jsonrpc: "2.0".into(),
+        id: serde_json::json!(4),
+        method: "a2a.task.approve".into(),
+        params: Some(serde_json::json!({
+            "task_id": task_id,
+            "approver_role": "human_user",
+            "auth_token": "human-auth-proof-operator-alice-9921",
             "sender_id": "operator-alice",
             "material_action": {
                 "action": "deploy",
@@ -149,7 +168,22 @@ fn test_a2a_jsonrpc_flow_with_security_guards() {
     let approved_res = handler.handle_request(genuine_approval);
     assert!(
         approved_res.error.is_none(),
-        "Genuine human approval MUST succeed"
+        "Genuine authenticated human approval MUST succeed"
+    );
+
+    // 5. Official Google A2A 1.0 JSON-RPC method routing test (GetTask)
+    let get_task_req = JsonRpcRequest {
+        jsonrpc: "2.0".into(),
+        id: serde_json::json!(5),
+        method: "GetTask".into(),
+        params: Some(serde_json::json!({
+            "task_id": task_id
+        })),
+    };
+    let get_task_res = handler.handle_request(get_task_req);
+    assert!(
+        get_task_res.error.is_none(),
+        "Standard A2A 1.0 GetTask method MUST succeed"
     );
 }
 

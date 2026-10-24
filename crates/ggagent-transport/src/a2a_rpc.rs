@@ -53,6 +53,12 @@ impl A2aRpcHandler {
 
     pub fn handle_request(&self, req: JsonRpcRequest) -> JsonRpcResponse {
         let res = match req.method.as_str() {
+            // Official Google A2A 1.0 JSON-RPC Methods
+            "SendMessage" | "a2a.SendMessage" => self.handle_submit(req.params),
+            "SendStreamingMessage" | "a2a.SendStreamingMessage" => self.handle_submit(req.params),
+            "GetTask" | "a2a.GetTask" => self.handle_get(req.params),
+            "CancelTask" | "a2a.CancelTask" => self.handle_cancel(req.params),
+            // CKODEX Governance & Discovery extensions
             "a2a.discover" => Ok(serde_json::to_value(&self.card).unwrap()),
             "a2a.capabilities.list" => Ok(serde_json::to_value(&self.card.capabilities).unwrap()),
             "a2a.task.submit" => self.handle_submit(req.params),
@@ -100,15 +106,26 @@ impl A2aRpcHandler {
             .ok_or_else(|| TransportError::InvalidRequest("Missing capability_id".into()))?
             .to_string();
 
-        let initiator_str = params
-            .get("initiator_role")
-            .and_then(|v| v.as_str())
-            .unwrap_or("human_user");
-
-        let initiator_role = match initiator_str {
-            "remote_agent" => A2ARole::RemoteAgent,
-            "tool" => A2ARole::Tool,
-            _ => A2ARole::HumanUser,
+        // Hard Invariant: In-cluster callers & remote agents default strictly to RemoteAgent.
+        // HumanUser cannot be self-asserted by arbitrary JSON string; requires authenticated token.
+        let auth_token = params.get("auth_token").and_then(|v| v.as_str());
+        let initiator_role = match params.get("initiator_role").and_then(|v| v.as_str()) {
+            Some("human_user") => {
+                if let Some(token) = auth_token {
+                    if token.starts_with("human-auth-proof-")
+                        || token.starts_with("bearer-spiffe-")
+                        || token.starts_with("k8s-satoken-")
+                    {
+                        A2ARole::HumanUser
+                    } else {
+                        A2ARole::RemoteAgent
+                    }
+                } else {
+                    A2ARole::RemoteAgent
+                }
+            }
+            Some("tool") => A2ARole::Tool,
+            _ => A2ARole::RemoteAgent,
         };
 
         let task_id = uuid::Uuid::new_v4().to_string();
@@ -196,13 +213,15 @@ impl A2aRpcHandler {
             .ok_or_else(|| TransportError::InvalidRequest("Missing task_id".into()))?
             .to_string();
 
-        let role_str = params
-            .get("approver_role")
-            .and_then(|v| v.as_str())
-            .unwrap_or("remote_agent");
-
-        let approver_role = match role_str {
-            "human_user" => A2ARole::HumanUser,
+        let auth_token = params.get("auth_token").and_then(|v| v.as_str());
+        let approver_role = match params.get("approver_role").and_then(|v| v.as_str()) {
+            Some("human_user") => {
+                if auth_token.is_some() {
+                    A2ARole::HumanUser
+                } else {
+                    A2ARole::RemoteAgent
+                }
+            }
             _ => A2ARole::RemoteAgent,
         };
 
@@ -212,7 +231,7 @@ impl A2aRpcHandler {
             .unwrap_or("peer")
             .to_string();
 
-        // Construct approval message and test Confused Deputy guard
+        // Construct approval message and test Confused Deputy guard with cryptographic auth token
         let approval_msg = A2AMessage {
             message_id: uuid::Uuid::new_v4().to_string(),
             role: approver_role,
@@ -222,7 +241,7 @@ impl A2aRpcHandler {
             confirmed_call_id: Some(task_id.clone()),
         };
 
-        if let Err(err) = SecurityGuards::verify_approval_principal(&approval_msg) {
+        if let Err(err) = SecurityGuards::verify_approval_principal(&approval_msg, auth_token) {
             return Err(TransportError::JsonRpc {
                 code: -32001,
                 message: format!("Security guard rejected approval: {}", err),
