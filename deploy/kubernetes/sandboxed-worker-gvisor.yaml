@@ -19,9 +19,6 @@ spec:
       labels:
         app: sandboxed-agent-worker
         app.kubernetes.io/part-of: ckodex-ggagent-cli
-      annotations:
-        # Enforce gVisor kernel virtualization (or kata-runtime for hardware microVMs)
-        container.apparmor.security.beta.kubernetes.io/worker: runtime/default
     spec:
       # Mandatory isolated CRI runtime class (runsc / Kata)
       runtimeClassName: gvisor
@@ -34,6 +31,8 @@ spec:
         runAsGroup: 65534
         fsGroup: 65534
         seccompProfile:
+          type: RuntimeDefault
+        appArmorProfile:
           type: RuntimeDefault
 
       containers:

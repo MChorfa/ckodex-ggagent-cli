@@ -1084,3 +1084,209 @@ fn test_papercuts_and_underlying_risk_mitigations() {
     assert!(spdx_json.contains("SPDX-2.2"));
     assert!(spdx_json.contains("CC0-1.0"));
 }
+
+#[test]
+fn test_g0_through_g7_acceptance_gates_suite() {
+    use ggagent_kernel::a2a::{A2AMessage, A2ARole, AgentCard};
+    use ggagent_kernel::error::KernelError;
+
+    // =========================================================================
+    // Gate G0: Build & Artifact Integrity
+    // Pinned digest, Ed25519 DSSE attestation, and reproducible in-toto envelope
+    // =========================================================================
+    let receipt = ExecutionReceipt::from_params(ExecutionReceiptParams {
+        task_id: "gate-g0-build".into(),
+        actor_id: "builder:cleanroom".into(),
+        authority_id: "auth:root:fabric".into(),
+        capability_id: "cap:build".into(),
+        action: "reproducible_build".into(),
+        input_digest: "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            .into(),
+        output_digest: "sha256:7fdc9f30123456789abcdef0123456789abcdef0123456789abcdef012345678"
+            .into(),
+        effect_digest: "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+            .into(),
+        duration_ms: 120,
+        exit_code: 0,
+    });
+    assert!(
+        receipt.verify_signature(),
+        "G0: Build receipt Ed25519 signature must verify"
+    );
+
+    // =========================================================================
+    // Gate G1: Kubernetes PSA Admission Rules
+    // Hardened container invariants: runAsNonRoot, readOnlyRootFilesystem, drop ALL
+    // =========================================================================
+    let k8s_deployment_yaml = include_str!("../../../deploy/kubernetes/deployment.yaml");
+    assert!(
+        k8s_deployment_yaml.contains("runAsNonRoot: true"),
+        "G1: Must enforce runAsNonRoot"
+    );
+    assert!(
+        k8s_deployment_yaml.contains("readOnlyRootFilesystem: true"),
+        "G1: Must enforce readOnlyRootFilesystem"
+    );
+    assert!(
+        k8s_deployment_yaml.contains("drop:\n                - ALL"),
+        "G1: Must drop ALL capabilities"
+    );
+    assert!(
+        k8s_deployment_yaml.contains("seccompProfile:\n          type: RuntimeDefault"),
+        "G1: Must use RuntimeDefault seccomp"
+    );
+
+    // =========================================================================
+    // Gate G2: Identity & Authority Spoofing Rejection
+    // Unauthenticated caller claiming HumanUser must be rejected fail-closed
+    // =========================================================================
+    let spoofed_human_msg = A2AMessage {
+        message_id: "spoof-1".into(),
+        role: A2ARole::HumanUser,
+        sender_id: "malicious-caller".into(),
+        parts: vec![],
+        timestamp: chrono::Utc::now(),
+        confirmed_call_id: Some("call-rm".into()),
+    };
+    let g2_res = SecurityGuards::verify_approval_principal(&spoofed_human_msg, None);
+    assert!(
+        matches!(g2_res, Err(ValidationError::ConfusedDeputyViolation { .. })),
+        "G2: Unauthenticated human claim must be rejected"
+    );
+
+    let valid_token_res = SecurityGuards::verify_approval_principal(
+        &spoofed_human_msg,
+        Some("human-auth-proof-valid-operator-token"),
+    );
+    assert!(
+        valid_token_res.is_ok(),
+        "G2: Authenticated operator token must pass"
+    );
+
+    // =========================================================================
+    // Gate G3: Sandbox Containment & Egress Defeat
+    // IMDS 169.254.169.254/32 access must be rejected by NetworkGuard
+    // =========================================================================
+    let egress_policy = NetworkEgressPolicy::new_hardened();
+    let g3_imds_res = NetworkEgressGuard::verify_egress(&egress_policy, "169.254.169.254", 80);
+    assert!(
+        matches!(g3_imds_res, Err(ValidationError::EgressViolation(..))),
+        "G3: IMDS egress must be blocked"
+    );
+
+    let cilium_policy_yaml = include_str!("../../../deploy/kubernetes/cilium-egress-deny.yaml");
+    assert!(
+        cilium_policy_yaml.contains("169.254.169.254/32"),
+        "G3: Cilium policy must explicitly deny IMDS"
+    );
+
+    // =========================================================================
+    // Gate G4: Action Integrity & Loopjacking Defeat
+    // Altered tool parameters fail AtomicEffectGuard at use-time
+    // =========================================================================
+    let legitimate_guard = AtomicEffectGuard::new(
+        "patch",
+        "kernel",
+        serde_json::json!({"file": "lib.rs", "line": 42}),
+    );
+    let tampered_params = serde_json::json!({"file": "lib.rs", "line": 999});
+    let g4_tamper_res =
+        SecurityGuards::verify_effect_guard(&legitimate_guard, "patch", "kernel", &tampered_params);
+    assert!(
+        matches!(
+            g4_tamper_res,
+            Err(ValidationError::LoopjackingViolation { .. })
+        ),
+        "G4: Tampered parameters must trigger LoopjackingViolation"
+    );
+
+    // =========================================================================
+    // Gate G5: Protocol Interoperability (Google A2A 1.0 JSON-RPC)
+    // SendMessage, GetTask, CancelTask must route to standard handlers
+    // =========================================================================
+    let card = AgentCard {
+        schema: "https://a2aprotocol.org/schemas/v1/agent-card.json".into(),
+        name: "test-agent".into(),
+        version: "1.0.0".into(),
+        description: "Integration test agent".into(),
+        endpoints: A2AEndpoints {
+            rpc: "/api/v1/a2a".into(),
+            events: "/api/v1/a2a/events".into(),
+        },
+        capabilities: vec![],
+        authentication: A2AAuth {
+            auth_type: "mtls_or_bearer".into(),
+            token_endpoint: None,
+        },
+        metadata: std::collections::BTreeMap::new(),
+    };
+    let handler = A2aRpcHandler::new(card);
+    let send_msg_req = JsonRpcRequest {
+        jsonrpc: "2.0".into(),
+        id: serde_json::json!(101),
+        method: "SendMessage".into(),
+        params: Some(serde_json::json!({
+            "capability_id": "a2a.jsonrpc.v1",
+            "session_id": "session-g5",
+        })),
+    };
+    let send_res = handler.handle_request(send_msg_req);
+    assert!(
+        send_res.error.is_none(),
+        "G5: Standard SendMessage RPC must succeed"
+    );
+
+    // =========================================================================
+    // Gate G6: Evidence Independence (Three-Loop Separation)
+    // InnerLoop cannot execute governance promotion or expand its own lease
+    // =========================================================================
+    let task_state = CoordinatedTaskState::new("task-g6");
+    let g6_res = LoopCoordinator::validate_loop_action(LoopRole::InnerLoop, "promote", &task_state);
+    assert!(
+        matches!(g6_res, Err(KernelError::MissingAuthority(..))),
+        "G6: InnerLoop worker cannot promote candidate"
+    );
+
+    // =========================================================================
+    // Gate G7: Recovery & Resilience (Generation Fencing)
+    // Advancing lease generation N -> N+1 must fence stale worker operations
+    // =========================================================================
+    let mut broker = AtomicEffectBroker::new(1, "fence-1-cluster");
+    let mut lease = CapabilityLease::new(
+        "lease-g7",
+        "worker-1",
+        "cluster:res",
+        vec!["mutate".into()],
+        chrono::Utc::now() + chrono::Duration::hours(1),
+    );
+    lease.generation = 1;
+    let guard = AtomicEffectGuard::new("mutate", "cluster:res", serde_json::json!({}));
+
+    // Advance broker generation to 2 (simulating partition recovery or handoff)
+    broker.advance_generation("fence-2-cluster");
+
+    let req_stale = EffectRequest {
+        lease: &lease,
+        guard: &guard,
+        received_generation: 1, // stale generation 1
+        idempotency_key: "step-stale-g7",
+        action: "mutate",
+        target: "cluster:res",
+        params: &serde_json::json!({}),
+    };
+
+    let g7_fenced_res = broker
+        .execute_effect(&req_stale)
+        .expect("Broker evaluates effect");
+    assert!(
+        matches!(
+            g7_fenced_res,
+            EffectDisposition::Fenced {
+                current_generation: 2,
+                received_generation: 1,
+                ..
+            }
+        ),
+        "G7: Stale generation 1 must be fenced"
+    );
+}

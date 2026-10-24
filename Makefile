@@ -1,6 +1,6 @@
 export CARGO_TARGET_DIR := $(CURDIR)/target
 
-.PHONY: all build release test clippy fmt doctor clean playground k8s-render
+.PHONY: all build release test clippy fmt doctor clean playground k8s-render kind-verify
 
 all: fmt clippy test build
 
@@ -41,6 +41,9 @@ playground: release
 
 k8s-render:
 	kubectl kustomize deploy/kubernetes
+
+kind-verify:
+	./scripts/kind-admission-verify.sh
 
 clean:
 	cargo clean

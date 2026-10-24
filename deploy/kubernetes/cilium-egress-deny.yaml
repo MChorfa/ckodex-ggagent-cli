@@ -10,7 +10,6 @@ metadata:
     app.kubernetes.io/part-of: ckodex-ggagent-cli
 spec:
   description: "Drop all egress to AWS/Azure/GCP Instance Metadata Services (IPv4 & IPv6)"
-  nodeSelector: {}
   endpointSelector:
     matchLabels:
       app.kubernetes.io/part-of: ckodex-ggagent-cli
