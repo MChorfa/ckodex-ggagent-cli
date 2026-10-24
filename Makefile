@@ -1,6 +1,6 @@
 export CARGO_TARGET_DIR := $(CURDIR)/target
 
-.PHONY: all build release test clippy fmt doctor clean playground
+.PHONY: all build release test clippy fmt doctor clean playground k8s-render
 
 all: fmt clippy test build
 
@@ -38,6 +38,9 @@ doctor: release
 
 playground: release
 	./bin/ggagent playground --port 8080
+
+k8s-render:
+	kubectl kustomize deploy/kubernetes
 
 clean:
 	cargo clean

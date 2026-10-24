@@ -1,0 +1,121 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ggagent-gateway
+  namespace: agent-system
+  labels:
+    app.kubernetes.io/name: ggagent
+    app.kubernetes.io/component: gateway
+    app.kubernetes.io/part-of: ckodex-ggagent-cli
+spec:
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: ggagent
+      app.kubernetes.io/component: gateway
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: ggagent
+        app.kubernetes.io/component: gateway
+    spec:
+      serviceAccountName: ggagent-sa
+      automountServiceAccountToken: true
+      terminationGracePeriodSeconds: 30
+
+      # Pod-level security context (Restricted Pod Security Standard)
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        runAsGroup: 65534
+        fsGroup: 65534
+        seccompProfile:
+          type: RuntimeDefault
+
+      containers:
+        - name: ggagent
+          image: ghcr.io/mchorfa/ckodex-ggagent-cli:v0.2.0
+          imagePullPolicy: IfNotPresent
+          command: ["/usr/local/bin/ggagent"]
+          args:
+            - "playground"
+            - "--host"
+            - "0.0.0.0"
+            - "--port"
+            - "8080"
+          ports:
+            - name: http-a2a
+              containerPort: 8080
+              protocol: TCP
+          env:
+            - name: RUST_LOG
+              value: "info,ggagent_transport=debug,ggagent_validation=info"
+            - name: GGAGENT_IN_CLUSTER
+              value: "true"
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "1000m"
+              memory: "512Mi"
+
+          # Hardened container-level security context
+          securityContext:
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+
+          # Day-2 Liveness & Readiness Probes
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            initialDelaySeconds: 3
+            periodSeconds: 5
+            timeoutSeconds: 2
+            successThreshold: 1
+            failureThreshold: 2
+
+          # Volume mounts for read-only rootfs compliance
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+            - name: workspace
+              mountPath: /home/nonroot/workspace
+            - name: flight-recorder
+              mountPath: /var/log/ggagent
+            - name: config
+              mountPath: /home/nonroot/.well-known/agent-card.json
+              subPath: agent-card.json
+              readOnly: true
+
+      volumes:
+        - name: tmp
+          emptyDir:
+            medium: Memory
+            sizeLimit: 64Mi
+        - name: workspace
+          emptyDir:
+            sizeLimit: 512Mi
+        - name: flight-recorder
+          emptyDir:
+            sizeLimit: 256Mi
+        - name: config
+          configMap:
+            name: ggagent-config

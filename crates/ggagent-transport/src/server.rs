@@ -8,6 +8,7 @@ use tokio::net::TcpListener;
 use tracing::info;
 
 pub struct TransportServer {
+    host: String,
     port: u16,
     a2a_handler: Arc<A2aRpcHandler>,
     ard_service: Arc<ArdService>,
@@ -15,9 +16,15 @@ pub struct TransportServer {
 }
 
 impl TransportServer {
-    pub fn new(port: u16, agent_card: AgentCard, ard_service: ArdService) -> Self {
+    pub fn new(
+        host: impl Into<String>,
+        port: u16,
+        agent_card: AgentCard,
+        ard_service: ArdService,
+    ) -> Self {
         let a2a_handler = Arc::new(A2aRpcHandler::new(agent_card.clone()));
         Self {
+            host: host.into(),
             port,
             a2a_handler,
             ard_service: Arc::new(ard_service),
@@ -26,7 +33,7 @@ impl TransportServer {
     }
 
     pub async fn run(&self) -> Result<(), Box<dyn std::error::Error>> {
-        let addr = format!("127.0.0.1:{}", self.port);
+        let addr = format!("{}:{}", self.host, self.port);
         let listener = TcpListener::bind(&addr).await?;
         info!(
             "CKODEX ggagent transport server listening on http://{}",

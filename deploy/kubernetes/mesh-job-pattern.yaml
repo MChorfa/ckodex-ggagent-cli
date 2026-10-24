@@ -1,0 +1,60 @@
+# Pattern 3: Ephemeral 4-Agent Mesh Workflow Job
+# Dispatches an in-cluster multi-agent mesh workflow (Gemini -> Codex -> Claude -> Cohere)
+# under a bounded capability lease with monotonic budget attenuation and signed DSSE receipts.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: ggagent-mesh-audit-job
+  namespace: agent-system
+  labels:
+    app.kubernetes.io/name: ggagent
+    app.kubernetes.io/component: mesh-job
+spec:
+  ttlSecondsAfterFinished: 3600
+  backoffLimit: 1
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: ggagent
+        app.kubernetes.io/component: mesh-job
+    spec:
+      serviceAccountName: ggagent-sa
+      restartPolicy: Never
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        runAsGroup: 65534
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: mesh-runner
+          image: ghcr.io/mchorfa/ckodex-ggagent-cli:v0.2.0
+          command: ["/usr/local/bin/ggagent"]
+          args:
+            - "agent"
+            - "mesh"
+            - "run"
+            - "--task"
+            - "Audit and patch in-cluster workload manifests for CVE-2026-18236 and generate signed SBOM"
+          securityContext:
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              cpu: "200m"
+              memory: "256Mi"
+            limits:
+              cpu: "1000m"
+              memory: "1Gi"
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+            - name: workspace
+              mountPath: /home/nonroot/workspace
+      volumes:
+        - name: tmp
+          emptyDir: {}
+        - name: workspace
+          emptyDir: {}

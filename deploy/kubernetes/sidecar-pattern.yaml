@@ -1,0 +1,80 @@
+# Pattern 2: Governed Agent Sidecar
+# Illustrates how an application or AI worker pod co-locates ggagent as a security sidecar proxy
+# to enforce Confused Deputy defense, AtomicEffectGuard use-time material binding, and IMDS defeat.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: secured-agent-worker
+  namespace: agent-system
+  labels:
+    app.kubernetes.io/name: secured-agent-worker
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: secured-agent-worker
+  template:
+    metadata:
+      labels:
+        app: secured-agent-worker
+    spec:
+      serviceAccountName: ggagent-sa
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        runAsGroup: 65534
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        # 1. Primary AI Worker / Application Container
+        - name: worker
+          image: python:3.11-slim
+          command:
+            - "sh"
+            - "-c"
+            - "echo 'Worker ready. Delegating actions via localhost:8080/api/v1/a2a'; sleep 3600"
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "256Mi"
+
+        # 2. ggagent Governed Sidecar Proxy
+        - name: ggagent-sidecar
+          image: ghcr.io/mchorfa/ckodex-ggagent-cli:v0.2.0
+          command: ["/usr/local/bin/ggagent"]
+          args:
+            - "playground"
+            - "--host"
+            - "127.0.0.1"
+            - "--port"
+            - "8080"
+          securityContext:
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "64Mi"
+            limits:
+              cpu: "250m"
+              memory: "256Mi"
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+            - name: workspace
+              mountPath: /home/nonroot/workspace
+      volumes:
+        - name: tmp
+          emptyDir: {}
+        - name: workspace
+          emptyDir: {}

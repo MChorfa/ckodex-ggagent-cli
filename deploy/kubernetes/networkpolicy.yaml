@@ -1,0 +1,64 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: ggagent-egress-governance
+  namespace: agent-system
+  labels:
+    app.kubernetes.io/name: ggagent
+    app.kubernetes.io/part-of: ckodex-ggagent-cli
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: ggagent
+  policyTypes:
+    - Ingress
+    - Egress
+
+  # INGRESS: Allow TCP 8080 from pods within the cluster or ingress gateway
+  ingress:
+    - from:
+        - namespaceSelector: {}
+      ports:
+        - protocol: TCP
+          port: 8080
+
+  # EGRESS: Hardened egress rules defeating cloud metadata IMDS exfiltration
+  egress:
+    # 1. Allow cluster DNS resolution
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+
+    # 2. Allow HTTPS egress to public model inference endpoints (OpenAI, Anthropic, Google Vertex AI, etc.)
+    # Hard Invariant: IMDS 169.254.169.254/32 is excluded via ipBlock CIDR fencing
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - 169.254.169.254/32 # Block AWS / GCP / Azure IMDS credential theft
+              - 10.0.0.0/8        # Block internal corporate intranets by default
+              - 172.16.0.0/12
+              - 192.168.0.0/16
+      ports:
+        - protocol: TCP
+          port: 443
+
+    # 3. Allow in-cluster model inference endpoints (e.g. internal vLLM / Ollama in ai-inference namespace)
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ai-inference
+      ports:
+        - protocol: TCP
+          port: 8000
+        - protocol: TCP
+          port: 8080

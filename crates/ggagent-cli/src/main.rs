@@ -69,6 +69,10 @@ enum Commands {
 
     /// Launch the interactive Web & Terminal Playground with live A2A/ARD endpoints
     Playground {
+        /// Host address to bind
+        #[arg(short = 'H', long, default_value = "0.0.0.0")]
+        host: String,
+
         /// Port to bind the server
         #[arg(short, long, default_value_t = 8080)]
         port: u16,
@@ -362,6 +366,10 @@ enum EvalCommands {
 enum ArdCommands {
     /// Serve /.well-known/ard.json on local port
     Serve {
+        /// Host address to bind
+        #[arg(short = 'H', long, default_value = "0.0.0.0")]
+        host: String,
+
         #[arg(short, long, default_value_t = 8080)]
         port: u16,
     },
@@ -768,26 +776,34 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             println!("   Run Day-2 doctor:     ggagent doctor");
         }
 
-        Commands::Playground { port } => {
+        Commands::Playground { host, port } => {
+            let display_host = if host == "0.0.0.0" {
+                "127.0.0.1"
+            } else {
+                &host
+            };
             println!(
-                "🌟 Starting CKODEX ggagent Playground on http://127.0.0.1:{}",
-                port
+                "🌟 Starting CKODEX ggagent Playground on http://{}:{}",
+                display_host, port
             );
             println!(
-                "   A2A Discovery: http://127.0.0.1:{}/.well-known/agent-card.json",
-                port
+                "   A2A Discovery: http://{}:{}/.well-known/agent-card.json",
+                display_host, port
             );
             println!(
-                "   ARD Discovery: http://127.0.0.1:{}/.well-known/ard.json",
-                port
+                "   ARD Discovery: http://{}:{}/.well-known/ard.json",
+                display_host, port
             );
             println!(
-                "   Interactive Web UI: http://127.0.0.1:{}/playground",
-                port
+                "   Interactive Web UI: http://{}:{}/playground",
+                display_host, port
             );
             let card = build_default_agent_card(port);
-            let ard = ArdService::new(&format!("127.0.0.1:{}", port), "CKODEX Architecture Team");
-            let server = TransportServer::new(port, card, ard);
+            let ard = ArdService::new(
+                &format!("{}:{}", display_host, port),
+                "CKODEX Architecture Team",
+            );
+            let server = TransportServer::new(host, port, card, ard);
             server.run().await?;
         }
 
@@ -890,14 +906,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         },
 
         Commands::Ard { cmd } => match cmd {
-            ArdCommands::Serve { port } => {
+            ArdCommands::Serve { host, port } => {
+                let display_host = if host == "0.0.0.0" {
+                    "127.0.0.1"
+                } else {
+                    &host
+                };
                 println!(
-                    "📡 Serving Agentic Resource Discovery (ARD) on port {}",
-                    port
+                    "📡 Serving Agentic Resource Discovery (ARD) on {}:{}",
+                    host, port
                 );
                 let card = build_default_agent_card(port);
-                let ard = ArdService::new(&format!("127.0.0.1:{}", port), "CKODEX");
-                let server = TransportServer::new(port, card, ard);
+                let ard = ArdService::new(&format!("{}:{}", display_host, port), "CKODEX");
+                let server = TransportServer::new(host, port, card, ard);
                 server.run().await?;
             }
             ArdCommands::Lint { path } => {
