@@ -1290,3 +1290,152 @@ fn test_g0_through_g7_acceptance_gates_suite() {
         "G7: Stale generation 1 must be fenced"
     );
 }
+
+#[test]
+fn test_m2_governed_lifecycle_end_to_end() {
+    use ggagent_kernel::a2a::{A2AMessage, A2ARole};
+    use ggagent_kernel::budget::ExecutionBudget;
+    use ggagent_kernel::coordinated_states::{
+        CandidateLifecycle, CoordinatedTaskState, ExecutionLifecycle,
+    };
+    use ggagent_kernel::lease::{AtomicEffectGuard, CapabilityLease, EffectDisposition};
+    use ggagent_kernel::loops::{LoopCoordinator, LoopRole};
+    use ggagent_validation::effect_broker::{AtomicEffectBroker, EffectRequest};
+    use ggagent_validation::guards::SecurityGuards;
+    use ggagent_validation::workspace_staging::WorkspaceStagingGuard;
+    use tempfile::tempdir;
+
+    // Step 1: Discovery (ARD + A2A)
+    let ard_service = ArdService::new("agent.local", "CKODEX Architecture Team");
+    let ard_doc = ard_service.get_document();
+    assert!(ArdValidator::validate(&ard_doc).is_ok());
+    assert!(ard_doc.find_resource_by_id("ggagent-a2a-service").is_some());
+
+    // Step 2: Intent Envelope & Root Authority Lease
+    let root_lease = CapabilityLease::new(
+        "root-lease-001",
+        "principal:root-fabric",
+        "resource:cluster/workloads",
+        vec!["*".into()],
+        chrono::Utc::now() + chrono::Duration::hours(2),
+    );
+    assert_eq!(root_lease.generation, 0);
+    let parent_budget = ExecutionBudget::new(100, 10, 100_000, 60_000);
+
+    // Step 3: Scoped Delegation & Monotonic Budget Attenuation
+    let child_lease = root_lease
+        .attenuate(
+            "child-lease-worker-alpha",
+            "worker:alpha",
+            vec!["patch".into(), "test".into()],
+            chrono::Utc::now() + chrono::Duration::hours(1),
+        )
+        .expect("Attenuation succeeds");
+    assert_eq!(child_lease.allowed_operations, vec!["patch", "test"]);
+    assert_eq!(child_lease.generation, 0);
+
+    let child_budget = parent_budget
+        .attenuate(25, 2, 20_000, 15_000)
+        .expect("Budget attenuation succeeds");
+    assert_eq!(child_budget.max_steps, 25);
+    assert_eq!(child_budget.max_mutating_effects, 2);
+
+    // Step 4: Sandbox Execution & Candidate Sealing (defeating TOCTOU)
+    let dir = tempdir().expect("tempdir");
+    let ws_root = dir.path().join("sandbox_ws");
+    std::fs::create_dir_all(&ws_root).expect("create ws dir");
+    let patch_path = ws_root.join("patch.diff");
+    std::fs::write(
+        &patch_path,
+        b"--- a/lib.rs\n+++ b/lib.rs\n@@ -1 +1 @@\n-old\n+new",
+    )
+    .expect("write patch");
+
+    let sealed =
+        WorkspaceStagingGuard::seal_candidate_file(&ws_root, std::path::Path::new("patch.diff"))
+            .expect("Candidate sealed into immutable snapshot");
+    assert!(!sealed.content_digest.is_empty());
+
+    // Step 5: Use-Time Authorization (AtomicEffectGuard + Operator Proof Token)
+    let mut task_state = CoordinatedTaskState::new("task-m2-e2e");
+    task_state.execution = ExecutionLifecycle::Running;
+    task_state.candidate = CandidateLifecycle::Sealed;
+
+    let patch_params = serde_json::json!({
+        "file": "crates/ggagent-kernel/src/lib.rs",
+        "sha256": sealed.content_digest,
+    });
+    let effect_guard = AtomicEffectGuard::new("patch", "kernel", patch_params.clone());
+
+    let operator_msg = A2AMessage {
+        message_id: "msg-approval-m2".into(),
+        role: A2ARole::HumanUser,
+        sender_id: "operator:human".into(),
+        parts: vec![],
+        timestamp: chrono::Utc::now(),
+        confirmed_call_id: Some("call-patch-001".into()),
+    };
+    // Verified with cryptographic operator proof token
+    SecurityGuards::verify_approval_principal(
+        &operator_msg,
+        Some("human-auth-proof-operator-alice"),
+    )
+    .expect("Operator approval verified");
+    SecurityGuards::verify_effect_guard(&effect_guard, "patch", "kernel", &patch_params)
+        .expect("Use-time material binding matches");
+
+    // Step 6: Three-Loop Independent OuterLoop Verification
+    // Inner loop cannot promote; OuterLoop must evaluate and promote
+    assert!(
+        LoopCoordinator::validate_loop_action(LoopRole::InnerLoop, "promote", &task_state).is_err(),
+        "Inner loop must not promote"
+    );
+    LoopCoordinator::validate_loop_action(LoopRole::OuterLoop, "review", &task_state)
+        .expect("Outer loop can review sealed candidate");
+
+    // Step 7: Cryptographic Evidence Publication
+    let receipt = ExecutionReceipt::from_params(ExecutionReceiptParams {
+        task_id: "task-m2-e2e".into(),
+        actor_id: "verifier:outer-loop".into(),
+        authority_id: "auth:root:fabric".into(),
+        capability_id: "cap:patch".into(),
+        action: "patch".into(),
+        input_digest: "sha256:0000".into(),
+        output_digest: format!("sha256:{}", sealed.content_digest),
+        effect_digest: effect_guard.expected_effect_digest.clone(),
+        duration_ms: 45,
+        exit_code: 0,
+    });
+    assert!(
+        receipt.verify_signature(),
+        "Receipt signed by outer loop must verify"
+    );
+
+    // Step 8: Revocation, Partition Split-Brain Fencing & Lineage
+    let mut broker = AtomicEffectBroker::new(1, "fence-1-task-m2");
+    // Advance generation 1 -> 2 (simulating lease rotation / failover)
+    broker.advance_generation("fence-2-task-m2");
+
+    let mut stale_child_lease = child_lease.clone();
+    stale_child_lease.generation = 1;
+    let stale_req = EffectRequest {
+        lease: &stale_child_lease,
+        guard: &effect_guard,
+        received_generation: 1, // stale generation 1
+        idempotency_key: "step-m2-stale",
+        action: "patch",
+        target: "kernel",
+        params: &patch_params,
+    };
+    let fenced = broker
+        .execute_effect(&stale_req)
+        .expect("Broker evaluates effect");
+    assert!(matches!(
+        fenced,
+        EffectDisposition::Fenced {
+            current_generation: 2,
+            received_generation: 1,
+            ..
+        }
+    ));
+}
