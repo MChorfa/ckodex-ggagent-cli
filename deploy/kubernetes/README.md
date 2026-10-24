@@ -1,70 +1,71 @@
-# In-Cluster Kubernetes Deployment & Governed Agentic Platform
+# In-Cluster Kubernetes Governed Agentic Platform
 
-This directory provides the production-grade, zero-trust Kubernetes manifests for deploying `ckodex-ggagent-cli` (`ggagent`) as an in-cluster autonomous agent platform.
+This directory provides the production-grade, zero-trust Kubernetes manifests for deploying `ckodex-ggagent-cli` (`ggagent`) as an in-cluster governed autonomous agent platform in compliance with **ADR 0006** and the **CKODEX Constitution**.
 
 ---
 
-## 1. Architectural Roles in Kubernetes
+## 1. Architectural Fabrics in Kubernetes
 
-When running in Kubernetes, `ggagent` provides the governed execution kernel and communication substrate for autonomous AI agents across three distinct operational topologies:
+Rather than treating Kubernetes manifests as self-certifying security boundaries, `ggagent` strictly separates **Mediation**, **Authority**, **Sandboxing**, and **Independent Verification** into discrete fabrics:
 
 ```text
-┌──────────────────────────────────────────────────────────────────────────────────┐
-│                             KUBERNETES CLUSTER                                   │
-│                                                                                  │
-│  [Pattern 1: Centralized A2A & ARD Gateway]                                     │
-│  Namespace: agent-system                                                        │
-│  Service: ggagent.agent-system.svc.cluster.local:8080                            │
-│  ┌─────────────────────────┐         ┌──────────────────────────────────────┐   │
-│  │ ggagent Gateway Pod     │ <─────> │ Client Pods / Microservices          │   │
-│  │ - A2A JSON-RPC 2.0      │         │ - Discovery: /.well-known/agent.json │   │
-│  │ - ARD Catalog           │         │ - Delegation via A2A protocol        │   │
-│  │ - Flight Recorder       │         └──────────────────────────────────────┘   │
-│  └─────────────────────────┘                                                     │
-│                                                                                  │
-│  [Pattern 2: Governed Sidecar Proxy]                                            │
-│  Namespace: app-workloads                                                       │
-│  ┌────────────────────────────────────────────────────────┐                      │
-│  │ Application Pod                                        │                      │
-│  │  ┌───────────────────────┐   localhost:8080   ┌────────┴───────────────────┐  │
-│  │  │ LLM Runner / Worker   │ ─────────────────> │ ggagent Sidecar Container  │  │
-│  │  │ (Python/Node/Go/Lang) │                    │ - AtomicEffectGuard        │  │
-│  │  └───────────────────────┘                    │ - Confused Deputy Defense  │  │
-│  │                                               │ - IMDS Egress Block        │  │
-│  │                                               │ - Ed25519 DSSE Attestation │  │
-│  └───────────────────────────────────────────────┴────────────────────────────┘  │
-│                                                                                  │
-│  [Pattern 3: Ephemeral 4-Agent Mesh Workflow Job]                                │
-│  Namespace: agent-system                                                        │
-│  ┌──────────────────────────────────────────────────────────────────────────┐    │
-│  │ Kubernetes Job: ggagent agent mesh run                                   │    │
-│  │ Gemini (Planner) -> Codex (Patcher) -> Claude (Reviewer) -> Cohere (Auditor)   │
-│  │ Monotonic Budget Attenuation & Generation Fencing [N -> N+1]              │    │
-│  └──────────────────────────────────────────────────────────────────────────┘    │
-└──────────────────────────────────────────────────────────────────────────────────┘
+┌────────────────────────────────────────────────────────────────────────────────────────┐
+│                                  KUBERNETES CLUSTER                                    │
+│                                                                                        │
+│  [Identity & Authority Fabric]                                                         │
+│  - Projected ServiceAccount Tokens (Audience-bound, 1h expiry) / SPIFFE SVIDs           │
+│  - CapabilityLease with Monotonic Generation N & Budget Attenuation                   │
+│  - Self-asserted caller identity/roles strictly rejected (CVE-2026-18236)              │
+│                                                                                        │
+│  [Ingress & Mediation: ggagent Gateway Service]                                        │
+│  Namespace: agent-system | Service: ggagent.agent-system.svc.cluster.local:8080       │
+│  - Google A2A 1.0 JSON-RPC (SendMessage, SendStreamingMessage, GetTask)                │
+│  - ARD Catalog (/.well-known/ard.json) & Agent Card (/.well-known/agent-card.json)      │
+│  - Flight Recorder & DSSE Evidence Ingestion                                          │
+│                                                                                        │
+│  [Untrusted Code Sandboxing: CRI Isolation]                                            │
+│  - RuntimeClass: gVisor (runsc) / Kata Containers (MicroVMs)                           │
+│  - Landlock LSM & Read-only rootfs; ephemeral memory-backed /tmp                       │
+│  - Staged candidates sealed into immutable SHA-256 snapshots (defeats TOCTOU)         │
+│                                                                                        │
+│  [Network Egress Fabric: Kernel eBPF Enforcement]                                      │
+│  - CiliumClusterwideNetworkPolicy explicit egressDeny to cloud IMDS                    │
+│    (169.254.169.254/32 and IPv6 fd00:ec2::254/128) - overrides additive allow-rules   │
+│                                                                                        │
+│  [Use-Time Authorization: AtomicEffectBroker]                                          │
+│  - AtomicEffectGuard: binds (task_id, action, sha256(canonical_args), generation)     │
+│  - Generation fencing (N -> N+1) defeats dual-worker partition split-brain             │
+│                                                                                        │
+│  [Evidence Fabric: Independent Outer-Loop Verifier]                                    │
+│  - Three-Loop Architecture: Executing worker CANNOT sign its own acceptance receipts   │
+│  - Isolated Verifier Job mounts candidates read-only, tests invariants, and signs      │
+│    Ed25519 DSSE attestation receipts                                                   │
+└────────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## 2. In-Cluster Operational Patterns
+## 2. In-Cluster Operational Topologies
 
-### Pattern 1: Centralized Gateway Service (`deploy/kubernetes/`)
-Deploys `ggagent` as a resilient, 2-replica `Deployment` fronted by a `ClusterIP` Service.
+### Topology 1: Centralized Governed Gateway (`deployment.yaml` & `service.yaml`)
+Deploys `ggagent` as a resilient 2-replica `Deployment` fronted by a `ClusterIP` Service:
 - **Service DNS:** `http://ggagent.agent-system.svc.cluster.local:8080`
-- **Agent Discovery:** `GET http://ggagent.agent-system.svc.cluster.local:8080/.well-known/agent-card.json`
-- **Resource Discovery:** `GET http://ggagent.agent-system.svc.cluster.local:8080/.well-known/ard.json`
-- **A2A Execution:** `POST http://ggagent.agent-system.svc.cluster.local:8080/api/v1/a2a`
-- **Streaming Events:** `GET http://ggagent.agent-system.svc.cluster.local:8080/api/v1/a2a/events`
+- **Agent Card:** `GET /.well-known/agent-card.json`
+- **ARD Discovery:** `GET /.well-known/ard.json`
+- **A2A Execution:** `POST /api/v1/a2a` (standard Google A2A 1.0 JSON-RPC)
+- **Streaming Events:** `GET /api/v1/a2a/events` (SSE streaming)
 
-### Pattern 2: Governed Sidecar Proxy (`sidecar-pattern.yaml`)
-Co-locates `ggagent` inside the same Pod as an AI execution container (e.g. LangChain, AutoGen, CrewAI, or raw worker script).
-- Intercepts mutating tool calls before they hit cluster APIs, databases, or cloud endpoints.
-- Verifies use-time material binding (`AtomicEffectGuard`) to defeat loopjacking attacks.
-- Enforces strict egress boundaries (blocks AWS/GCP/Azure IMDS `169.254.169.254/32` to prevent credential theft).
+### Topology 2: Ambient Mediator Sidecar (`sidecar-pattern.yaml`)
+Co-locates `ggagent` inside the same Pod as an AI runtime (Python, Node.js, Go) as an **ambient mediator and telemetry proxy**.
+> **Important:** In accordance with ADR 0006, the sidecar is an ambient adapter and mediator, NOT a security containment boundary for untrusted code execution.
 
-### Pattern 3: Ephemeral Workflow Job (`mesh-job-pattern.yaml`)
-Runs a single-shot, audit-gated multi-model mesh task as a Kubernetes `Job` or `CronJob`.
-- Automatically terminates after generation of signed Ed25519 DSSE receipts and CycloneDX 1.7 AI-BOMs.
+### Topology 3: Sandboxed Worker Container (`sandboxed-worker-gvisor.yaml`)
+For executing untrusted tools, shell commands, or generated code. Employs hardware-isolated CRI sandboxing (`runtimeClassName: gvisor` / `runsc`), memory-backed workspace mounts, and projected audience-bound tokens.
+
+### Topology 4: Independent Outer-Loop Verifier (`independent-verifier-job.yaml`)
+Enforces the **Three-Loop Separation of Responsibility**:
+- Worker (Inner Loop) produces sealed candidates.
+- Verifier (Outer Loop) runs in an isolated Job, validates split-conformal risk bounds, and produces the final cryptographic `ExecutionReceipt` signed with Ed25519.
 
 ---
 
@@ -75,35 +76,35 @@ Runs a single-shot, audit-gated multi-model mesh task as a Kubernetes `Job` or `
 | **Non-Root & Distroless** | Runs as unprivileged `UID:GID 65534:65534` (`distroless/cc-debian12:nonroot`). |
 | **Immutable Filesystem** | `readOnlyRootFilesystem: true`. Temporary writes restricted to memory-backed `emptyDir`. |
 | **Capability Dropping** | `capabilities: drop: ["ALL"]` and `allowPrivilegeEscalation: false`. |
-| **Least-Authority RBAC** | ServiceAccount `ggagent-sa` has NO cluster-admin standing. Scoped exclusively to namespace events and leases. |
-| **IMDS Exfiltration Defeat** | `NetworkPolicy` explicitly fences `169.254.169.254/32` (AWS/GCP/Azure metadata service). |
-| **Confused Deputy Defense** | A2A role validation strictly rejects remote peer agents masquerading as human approvers (CVE-2026-18236). |
+| **Least-Authority RBAC** | ServiceAccount `ggagent-sa` has 0 cluster-admin, 0 secret read, 0 pod delete permissions. |
+| **IMDS Exfiltration Defeat** | `CiliumClusterwideNetworkPolicy` with explicit eBPF socket-level `egressDeny`. |
+| **Confused Deputy Defense** | Self-asserted caller roles rejected. `human_user` requires verified cryptographic proof tokens. |
+| **Loopjacking Defense** | `AtomicEffectGuard` binds exact arguments at use time. |
+| **Generation Fencing** | `AtomicEffectBroker` rejects stale generation requests during partition failover ($N \to N+1$). |
 | **Day-2 Health Probes** | `livenessProbe` and `readinessProbe` bind to `/healthz` and in-pod `ggagent doctor`. |
 
 ---
 
-## 4. Quickstart: Installing into Kubernetes
+## 4. Verification & Deployment Quickstart
 
-### Prerequisites
-- Kubernetes v1.28+ cluster
-- `kubectl` configured with cluster access
+### Step 1: Run Pre-Flight KinD Admission & RBAC Verification
+Before deploying to production, execute the automated verification script against your cluster:
+```bash
+make kind-verify
+# Or directly: ./scripts/kind-admission-verify.sh
+```
+This tests:
+1. Pod Security Admission `restricted` namespace enforcement.
+2. Server-side dry-run admission of all CRDs, policies, deployments, and jobs.
+3. Least-authority RBAC audit (asserting 0 cluster-admin, 0 secret read, 0 pod delete).
 
-### Step 1: Deploy with Kustomize
+### Step 2: Deploy with Kustomize
 ```bash
 # Preview rendered resources
 kubectl kustomize deploy/kubernetes
 
-# Apply all resources
+# Apply all resources to cluster
 kubectl apply -k deploy/kubernetes
-```
-
-### Step 2: Verify Rollout
-```bash
-# Verify pods are running in agent-system namespace
-kubectl get pods -n agent-system -l app.kubernetes.io/name=ggagent
-
-# Verify Service endpoints
-kubectl get svc -n agent-system ggagent
 ```
 
 ### Step 3: Run In-Cluster Day-2 Diagnostics
@@ -113,30 +114,46 @@ kubectl exec -n agent-system deploy/ggagent-gateway -c ggagent -- /usr/local/bin
 ```
 
 ### Step 4: Interact with the Agent from Within the Cluster
-From any Pod in the cluster:
+
+From any workload or client Pod in the cluster:
+
+#### 1. Discover Agent Card (A2A 1.0)
 ```bash
-# 1. Discover Agent Card
 curl -s http://ggagent.agent-system.svc.cluster.local:8080/.well-known/agent-card.json
+```
 
-# 2. Discover Cataloged Resources (ARD)
+#### 2. Discover Resources (ARD 1.0)
+```bash
 curl -s http://ggagent.agent-system.svc.cluster.local:8080/.well-known/ard.json
+```
 
-# 3. Submit an A2A Task via JSON-RPC
+#### 3. Send Task via Standard Google A2A 1.0 JSON-RPC
+Pass the projected in-pod ServiceAccount token in the `Authorization` header:
+```bash
+TOKEN=$(cat /var/run/secrets/tokens/agent-token 2>/dev/null || cat /var/run/secrets/kubernetes.io/serviceaccount/token)
+
 curl -s -X POST http://ggagent.agent-system.svc.cluster.local:8080/api/v1/a2a \
+  -H "Authorization: Bearer ${TOKEN}" \
   -H "Content-Type: application/json" \
   -d '{
     "jsonrpc": "2.0",
-    "method": "a2a.submit_task",
+    "method": "SendMessage",
     "params": {
-      "task_id": "k8s-task-001",
-      "instruction": "Audit namespace workloads for security compliance",
-      "authority": {
-        "root_fabric": "thales-trt-canada",
-        "tenant": "cluster-default",
-        "namespace": "agent-system",
-        "role": "InClusterWorker"
+      "message": {
+        "message_id": "msg-001",
+        "sender_id": "worker-client",
+        "parts": [
+          { "text": "Execute security audit of namespace workloads" }
+        ],
+        "timestamp": "2026-10-24T18:00:00Z"
       }
     },
     "id": 1
   }'
+```
+
+#### 4. Run Governed 8-Step Lifecycle Verification (M2)
+```bash
+# Run the full end-to-end governed lifecycle verification in-pod:
+kubectl exec -n agent-system deploy/ggagent-gateway -c ggagent -- /usr/local/bin/ggagent agent lifecycle -F table
 ```
