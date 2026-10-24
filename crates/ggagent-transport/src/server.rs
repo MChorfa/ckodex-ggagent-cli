@@ -90,11 +90,47 @@ impl TransportServer {
                         body
                     );
                     let _ = socket.write_all(response.as_bytes()).await;
-                } else if method == "POST" && path == "/api/v1/a2a" {
+                } else if method == "POST"
+                    && (path == "/api/v1/a2a" || path == "/a2a/v1/rpc" || path == "/rpc")
+                {
+                    // Extract Authorization header (Bearer token, SPIFFE, or K8s ServiceAccount token)
+                    let mut auth_token: Option<String> = None;
+                    for line in request.lines() {
+                        let trimmed = line.trim();
+                        if trimmed.to_lowercase().starts_with("authorization:") {
+                            let val = trimmed["authorization:".len()..].trim();
+                            if let Some(bearer) = val.strip_prefix("Bearer ") {
+                                auth_token = Some(bearer.trim().to_string());
+                            } else if let Some(bearer) = val.strip_prefix("bearer ") {
+                                auth_token = Some(bearer.trim().to_string());
+                            } else {
+                                auth_token = Some(val.to_string());
+                            }
+                            break;
+                        }
+                    }
+
                     // Find JSON body after \r\n\r\n
                     if let Some(pos) = request.find("\r\n\r\n") {
                         let json_str = &request[pos + 4..];
-                        if let Ok(rpc_req) = serde_json::from_str::<JsonRpcRequest>(json_str) {
+                        if let Ok(mut rpc_req) = serde_json::from_str::<JsonRpcRequest>(json_str) {
+                            // Wire HTTP Bearer token into RPC request parameters if present
+                            if let Some(ref token) = auth_token {
+                                if let Some(ref mut params) = rpc_req.params {
+                                    if let Some(obj) = params.as_object_mut() {
+                                        if !obj.contains_key("auth_token") {
+                                            obj.insert(
+                                                "auth_token".to_string(),
+                                                serde_json::json!(token),
+                                            );
+                                        }
+                                    }
+                                } else {
+                                    rpc_req.params =
+                                        Some(serde_json::json!({ "auth_token": token }));
+                                }
+                            }
+
                             let rpc_res = a2a.handle_request(rpc_req);
                             let body = serde_json::to_string_pretty(&rpc_res).unwrap_or_default();
                             let response = format!(

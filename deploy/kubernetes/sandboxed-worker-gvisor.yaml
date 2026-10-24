@@ -1,0 +1,85 @@
+# Pattern 4: Hardware/Kernel Isolated Worker Sandbox (M1/M2 Architecture)
+# Untrusted agent tasks, code execution, and shell operations MUST execute within
+# an independent containment boundary (gVisor or Kata Containers) rather than a shared Pod sidecar.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sandboxed-agent-worker
+  namespace: agent-system
+  labels:
+    app.kubernetes.io/name: sandboxed-agent-worker
+    app.kubernetes.io/part-of: ckodex-ggagent-cli
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: sandboxed-agent-worker
+  template:
+    metadata:
+      labels:
+        app: sandboxed-agent-worker
+        app.kubernetes.io/part-of: ckodex-ggagent-cli
+      annotations:
+        # Enforce gVisor kernel virtualization (or kata-runtime for hardware microVMs)
+        container.apparmor.security.beta.kubernetes.io/worker: runtime/default
+    spec:
+      # Mandatory isolated CRI runtime class (runsc / Kata)
+      runtimeClassName: gvisor
+      serviceAccountName: ggagent-sa
+      terminationGracePeriodSeconds: 15
+
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        runAsGroup: 65534
+        fsGroup: 65534
+        seccompProfile:
+          type: RuntimeDefault
+
+      containers:
+        - name: worker
+          image: ghcr.io/mchorfa/ckodex-ggagent-cli:v0.2.0
+          command: ["/usr/local/bin/ggagent"]
+          args:
+            - "subagents"
+            - "exec"
+            - "--strategy"
+            - "1" # Blind-First Consensus Strategy
+          securityContext:
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "256Mi"
+            limits:
+              cpu: "1000m"
+              memory: "512Mi"
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+            - name: sandbox-workspace
+              mountPath: /home/nonroot/workspace
+            - name: k8s-token
+              mountPath: /var/run/secrets/tokens
+              readOnly: true
+
+      volumes:
+        - name: tmp
+          emptyDir:
+            medium: Memory
+            sizeLimit: 64Mi
+        - name: sandbox-workspace
+          emptyDir:
+            medium: Memory
+            sizeLimit: 256Mi
+        - name: k8s-token
+          projected:
+            sources:
+              - serviceAccountToken:
+                  path: agent-token
+                  expirationSeconds: 3600
+                  audience: ggagent-gateway.agent-system.svc.cluster.local

@@ -1,0 +1,72 @@
+# Three-Loop Outer Loop Verifier Job (Milestone M1/M2)
+# Enforces the fundamental CKODEX invariant:
+# The executing Inner Loop (worker) CANNOT sign its own acceptance receipt.
+# An independent Outer Loop Verifier in an isolated Job reviews sealed candidates,
+# verifies invariants and test suites, and only then signs the promotion DSSE receipt.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: ggagent-independent-verifier
+  namespace: agent-system
+  labels:
+    app.kubernetes.io/name: ggagent
+    app.kubernetes.io/component: outer-loop-verifier
+spec:
+  ttlSecondsAfterFinished: 3600
+  backoffLimit: 0 # Fail-closed on verification failure
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: ggagent
+        app.kubernetes.io/component: outer-loop-verifier
+    spec:
+      restartPolicy: Never
+      serviceAccountName: ggagent-sa
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        runAsGroup: 65534
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: verifier
+          image: ghcr.io/mchorfa/ckodex-ggagent-cli:v0.2.0
+          command: ["/usr/local/bin/ggagent"]
+          args:
+            - "eval"
+            - "run"
+            - "--conformal-alpha"
+            - "0.01"
+          securityContext:
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "256Mi"
+            limits:
+              cpu: "1000m"
+              memory: "512Mi"
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+            - name: sealed-candidates
+              mountPath: /home/nonroot/candidates
+              readOnly: true
+            - name: verifier-key
+              mountPath: /var/run/secrets/verifier
+              readOnly: true
+      volumes:
+        - name: tmp
+          emptyDir:
+            medium: Memory
+            sizeLimit: 64Mi
+        - name: sealed-candidates
+          emptyDir:
+            sizeLimit: 128Mi
+        - name: verifier-key
+          secret:
+            secretName: ggagent-outerloop-signing-key
+            optional: true
