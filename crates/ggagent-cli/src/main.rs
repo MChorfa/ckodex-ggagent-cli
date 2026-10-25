@@ -403,7 +403,7 @@ enum ArdCommands {
     Lint { path: String },
     /// Query discovered resources by type
     Query {
-        #[arg(short, long)]
+        #[arg(short = 't', short_alias = 'r', long, alias = "type")]
         resource_type: Option<String>,
     },
 }
@@ -1491,11 +1491,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             HarnessCommands::Dispatch { family, intent } => {
                 let fam = match family.to_lowercase().as_str() {
                     "antigravity" | "gemini" => HarnessFamily::AntigravityGemini,
-                    "claude" | "claude-code" => HarnessFamily::ClaudeCode,
-                    "codex" | "openai" => HarnessFamily::CodexOpenAi,
+                    "claude" | "claude-code" | "claude_code" => HarnessFamily::ClaudeCode,
+                    "codex" | "openai" | "codex_openai" => HarnessFamily::CodexOpenAi,
                     "cohere" | "command" => HarnessFamily::CohereCommand,
                     "opencode" => HarnessFamily::OpenCode,
-                    "sam" | "sam-mesh" => HarnessFamily::SamMesh,
+                    "sam" | "sam-mesh" | "sam_mesh" => HarnessFamily::SamMesh,
                     _ => HarnessFamily::GoogleAgentsCli,
                 };
                 let cmd = CrossHarnessBridge::format_dispatch(fam, &intent, "B")?;

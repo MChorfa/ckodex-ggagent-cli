@@ -54,6 +54,7 @@ pub struct ArdCapability {
 pub struct ArdResource {
     pub id: String,
     pub name: String,
+    #[serde(alias = "type")]
     pub resource_type: ArdResourceType,
     pub version: String,
     pub description: String,
@@ -65,14 +66,19 @@ pub struct ArdResource {
     pub metadata: BTreeMap<String, String>,
 }
 
+fn default_ard_schema() -> String {
+    "https://agenticresourcediscovery.org/schemas/v1/ard.json".into()
+}
+
 /// The canonical Agentic Resource Discovery Document (served at /.well-known/ard.json)
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ArdDocument {
-    #[serde(rename = "$schema")]
+    #[serde(rename = "$schema", default = "default_ard_schema")]
     pub schema: String,
     pub publisher: String,
     pub domain: String,
     pub version: String,
+    #[serde(default = "Utc::now")]
     pub generated_at: DateTime<Utc>,
     pub resources: Vec<ArdResource>,
     #[serde(default)]
