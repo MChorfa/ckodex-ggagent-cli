@@ -47,7 +47,8 @@ pub use coordinated_states::{
 };
 pub use error::KernelError;
 pub use governed_execution::{
-    ContextFault, ContextRoot, EffectStage, IsolationClass, IsolationContract,
+    ContextFault, ContextRoot, EffectStage, HardVetoEvaluator, IsolationClass, IsolationContract,
+    JournalChain, JournalEntry,
 };
 pub use handoff::{HandoffManifest, HandoffParams};
 pub use lease::{AtomicEffectGuard, CapabilityLease, EffectDisposition};

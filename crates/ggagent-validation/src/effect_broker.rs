@@ -5,14 +5,17 @@
 //! 2. Exact use-time material binding: Defeats Loopjacking (arXiv:2609.21081).
 //! 3. 7-Stage Effect Safety Transactional FSM:
 //!    PROPOSED -> AUTHORIZED -> PREPARED -> CLAIMED -> APPLYING -> RECONCILED -> COMMITTED
-//! 4. Explicit IN_DOUBT state handling (GFX-S09): On timeout/crash/network partition,
-//!    mark IN_DOUBT, observe and reconcile before any retry! NO BLIND RETRIES.
-//! 5. Explicit disposition: `Prepared`, `Committed`, `InDoubt`, `Denied`, `Fenced`, `Failed`.
+//! 4. Cryptographic Hash-Chained Journal (GFX-S08): Every state transition is cryptographically
+//!    chained via SHA-256 (sequence, previous hash, key, stage).
+//! 5. Post-Crash Fencing & IN_DOUBT Escalation (GFX-S09): On crash recovery, any in-flight
+//!    transaction in APPLYING or CLAIMED is automatically fenced by advancing generation N -> N+1
+//!    and transitioned to IN_DOUBT. NO BLIND RETRIES.
+//! 6. Explicit disposition: `Prepared`, `Committed`, `InDoubt`, `Denied`, `Fenced`, `Failed`.
 
 use crate::error::ValidationError;
 use crate::guards::SecurityGuards;
 use chrono::Utc;
-use ggagent_kernel::governed_execution::EffectStage;
+use ggagent_kernel::governed_execution::{EffectStage, JournalChain};
 use ggagent_kernel::lease::{AtomicEffectGuard, CapabilityLease, EffectDisposition};
 use std::collections::BTreeMap;
 use tracing::warn;
@@ -39,6 +42,8 @@ pub struct AtomicEffectBroker {
     pub idempotency_cache: BTreeMap<String, EffectDisposition>,
     /// Transactional effect safety journal: idempotency_key -> EffectStage
     pub effect_journal: BTreeMap<String, EffectStage>,
+    /// Cryptographic hash-chained journal chain (GFX-S08)
+    pub journal_chain: JournalChain,
 }
 
 impl AtomicEffectBroker {
@@ -48,6 +53,7 @@ impl AtomicEffectBroker {
             authoritative_fencing_token: fencing_token.into(),
             idempotency_cache: BTreeMap::new(),
             effect_journal: BTreeMap::new(),
+            journal_chain: JournalChain::new(),
         }
     }
 
@@ -56,6 +62,13 @@ impl AtomicEffectBroker {
         self.current_generation += 1;
         self.authoritative_fencing_token = new_token.into();
         self.current_generation
+    }
+
+    /// Verify the cryptographic integrity of the append-only journal chain.
+    pub fn verify_journal_integrity(&self) -> Result<(), ValidationError> {
+        self.journal_chain.verify_chain().map_err(|e| {
+            ValidationError::EffectExecutionDenied(format!("Journal chain corruption: {}", e))
+        })
     }
 
     /// Step 3 of 7-Stage FSM: Durably prepare intent & exact preconditions before side-effects (GFX-S08).
@@ -83,14 +96,14 @@ impl AtomicEffectBroker {
             };
             self.idempotency_cache
                 .insert(req.idempotency_key.to_string(), fenced.clone());
-            self.effect_journal.insert(
-                req.idempotency_key.to_string(),
-                EffectStage::Fenced {
-                    current_generation: self.current_generation,
-                    received_generation: req.received_generation,
-                    fenced_at: Utc::now(),
-                },
-            );
+            let stage = EffectStage::Fenced {
+                current_generation: self.current_generation,
+                received_generation: req.received_generation,
+                fenced_at: Utc::now(),
+            };
+            self.effect_journal
+                .insert(req.idempotency_key.to_string(), stage.clone());
+            self.journal_chain.append(req.idempotency_key, stage);
             return Ok(fenced);
         }
 
@@ -101,13 +114,13 @@ impl AtomicEffectBroker {
             };
             self.idempotency_cache
                 .insert(req.idempotency_key.to_string(), denied.clone());
-            self.effect_journal.insert(
-                req.idempotency_key.to_string(),
-                EffectStage::Denied {
-                    reason: format!("Lease verification failed: {}", e),
-                    denied_at: Utc::now(),
-                },
-            );
+            let stage = EffectStage::Denied {
+                reason: format!("Lease verification failed: {}", e),
+                denied_at: Utc::now(),
+            };
+            self.effect_journal
+                .insert(req.idempotency_key.to_string(), stage.clone());
+            self.journal_chain.append(req.idempotency_key, stage);
             return Ok(denied);
         }
 
@@ -120,29 +133,30 @@ impl AtomicEffectBroker {
             };
             self.idempotency_cache
                 .insert(req.idempotency_key.to_string(), denied.clone());
-            self.effect_journal.insert(
-                req.idempotency_key.to_string(),
-                EffectStage::Denied {
-                    reason: format!("Anti-loopjacking check failed: {}", e),
-                    denied_at: Utc::now(),
-                },
-            );
+            let stage = EffectStage::Denied {
+                reason: format!("Anti-loopjacking check failed: {}", e),
+                denied_at: Utc::now(),
+            };
+            self.effect_journal
+                .insert(req.idempotency_key.to_string(), stage.clone());
+            self.journal_chain.append(req.idempotency_key, stage);
             return Ok(denied);
         }
 
-        // Record PREPARED in journal
+        // Record PREPARED in journal and hash-chain
         let effect_digest = AtomicEffectGuard::compute_digest(req.action, req.target, req.params);
         let prepared_id = format!("prep-{}-{}", self.current_generation, req.idempotency_key);
         let fencing_token = req.lease.fencing_token.clone();
 
-        self.effect_journal.insert(
-            req.idempotency_key.to_string(),
-            EffectStage::Prepared {
-                request_digest: effect_digest,
-                fencing_token: fencing_token.clone(),
-                prepared_at: Utc::now(),
-            },
-        );
+        let stage = EffectStage::Prepared {
+            request_digest: effect_digest,
+            fencing_token: fencing_token.clone(),
+            prepared_at: Utc::now(),
+        };
+
+        self.effect_journal
+            .insert(req.idempotency_key.to_string(), stage.clone());
+        self.journal_chain.append(req.idempotency_key, stage);
 
         let prepared_disp = EffectDisposition::Prepared {
             prepared_id,
@@ -169,14 +183,14 @@ impl AtomicEffectBroker {
         match current_stage {
             EffectStage::Prepared { fencing_token, .. } => {
                 let token = fencing_token.clone();
-                self.effect_journal.insert(
-                    idempotency_key.to_string(),
-                    EffectStage::Claimed {
-                        fencing_token: token.clone(),
-                        claimed_by: broker_identity.to_string(),
-                        claimed_at: Utc::now(),
-                    },
-                );
+                let stage = EffectStage::Claimed {
+                    fencing_token: token.clone(),
+                    claimed_by: broker_identity.to_string(),
+                    claimed_at: Utc::now(),
+                };
+                self.effect_journal
+                    .insert(idempotency_key.to_string(), stage.clone());
+                self.journal_chain.append(idempotency_key, stage);
                 Ok(token)
             }
             other => Err(ValidationError::EffectExecutionDenied(format!(
@@ -206,18 +220,17 @@ impl AtomicEffectBroker {
             )));
         }
 
-        self.effect_journal.insert(
-            idempotency_key.to_string(),
-            EffectStage::Applying {
-                remote_request_id: remote_request_id.to_string(),
-                started_at: Utc::now(),
-            },
-        );
+        let stage = EffectStage::Applying {
+            remote_request_id: remote_request_id.to_string(),
+            started_at: Utc::now(),
+        };
+        self.effect_journal
+            .insert(idempotency_key.to_string(), stage.clone());
+        self.journal_chain.append(idempotency_key, stage);
         Ok(())
     }
 
     /// Steps 6 & 7: Reconcile or transition to IN_DOUBT (GFX-S09).
-    /// If external execution is ambiguous or timed out, marks IN_DOUBT and blocks duplicate side effects.
     pub fn reconcile_or_doubt(
         &mut self,
         idempotency_key: &str,
@@ -225,36 +238,32 @@ impl AtomicEffectBroker {
     ) -> Result<EffectDisposition, ValidationError> {
         match outcome {
             Ok(observed_digest) => {
-                // Record Reconciled then Committed
-                self.effect_journal.insert(
-                    idempotency_key.to_string(),
-                    EffectStage::Reconciled {
-                        observed_digest: observed_digest.clone(),
-                        reconciled_at: Utc::now(),
-                    },
-                );
+                // Record Reconciled then Committed in journal and hash-chain
+                let rec_stage = EffectStage::Reconciled {
+                    observed_digest: observed_digest.clone(),
+                    reconciled_at: Utc::now(),
+                };
+                self.effect_journal
+                    .insert(idempotency_key.to_string(), rec_stage.clone());
+                self.journal_chain.append(idempotency_key, rec_stage);
 
                 let receipt_id = format!("rcpt-{}-{}", self.current_generation, idempotency_key);
                 let committed = EffectDisposition::Committed {
-                    receipt_id,
-                    effect_digest: observed_digest,
+                    receipt_id: receipt_id.clone(),
+                    effect_digest: observed_digest.clone(),
                     generation: self.current_generation,
                 };
 
-                self.effect_journal.insert(
-                    idempotency_key.to_string(),
-                    EffectStage::Committed {
-                        receipt_id: format!("rcpt-{}-{}", self.current_generation, idempotency_key),
-                        effect_digest: match &committed {
-                            EffectDisposition::Committed { effect_digest, .. } => {
-                                effect_digest.clone()
-                            }
-                            _ => String::new(),
-                        },
-                        generation: self.current_generation,
-                        committed_at: Utc::now(),
-                    },
-                );
+                let com_stage = EffectStage::Committed {
+                    receipt_id,
+                    effect_digest: observed_digest,
+                    generation: self.current_generation,
+                    committed_at: Utc::now(),
+                };
+
+                self.effect_journal
+                    .insert(idempotency_key.to_string(), com_stage.clone());
+                self.journal_chain.append(idempotency_key, com_stage);
 
                 self.idempotency_cache
                     .insert(idempotency_key.to_string(), committed.clone());
@@ -273,21 +282,126 @@ impl AtomicEffectBroker {
                     requires_reconciliation: true,
                 };
 
-                self.effect_journal.insert(
-                    idempotency_key.to_string(),
-                    EffectStage::InDoubt {
-                        reason,
-                        last_stage: "APPLYING".into(),
-                        requires_reconciliation: true,
-                        detected_at: Utc::now(),
-                    },
-                );
+                let stage = EffectStage::InDoubt {
+                    reason,
+                    last_stage: "APPLYING".into(),
+                    requires_reconciliation: true,
+                    detected_at: Utc::now(),
+                };
+
+                self.effect_journal
+                    .insert(idempotency_key.to_string(), stage.clone());
+                self.journal_chain.append(idempotency_key, stage);
 
                 self.idempotency_cache
                     .insert(idempotency_key.to_string(), in_doubt.clone());
                 Ok(in_doubt)
             }
         }
+    }
+
+    /// Explicit reconciliation of an IN_DOUBT effect based on postcondition verification.
+    pub fn reconcile_in_doubt_effect(
+        &mut self,
+        idempotency_key: &str,
+        postcondition_digest: &str,
+    ) -> Result<EffectDisposition, ValidationError> {
+        let current_stage = self.effect_journal.get(idempotency_key).ok_or_else(|| {
+            ValidationError::EffectExecutionDenied(format!(
+                "Key '{}' not found in journal",
+                idempotency_key
+            ))
+        })?;
+
+        if !matches!(current_stage, EffectStage::InDoubt { .. }) {
+            return Err(ValidationError::EffectExecutionDenied(format!(
+                "Cannot reconcile key '{}': current stage is {:?}, expected IN_DOUBT",
+                idempotency_key, current_stage
+            )));
+        }
+
+        // Record Reconciled
+        let rec_stage = EffectStage::Reconciled {
+            observed_digest: postcondition_digest.to_string(),
+            reconciled_at: Utc::now(),
+        };
+        self.effect_journal
+            .insert(idempotency_key.to_string(), rec_stage.clone());
+        self.journal_chain.append(idempotency_key, rec_stage);
+
+        // Commit with receipt
+        let receipt_id = format!(
+            "rcpt-reconciled-{}-{}",
+            self.current_generation, idempotency_key
+        );
+        let committed = EffectDisposition::Committed {
+            receipt_id: receipt_id.clone(),
+            effect_digest: postcondition_digest.to_string(),
+            generation: self.current_generation,
+        };
+        let com_stage = EffectStage::Committed {
+            receipt_id,
+            effect_digest: postcondition_digest.to_string(),
+            generation: self.current_generation,
+            committed_at: Utc::now(),
+        };
+        self.effect_journal
+            .insert(idempotency_key.to_string(), com_stage.clone());
+        self.journal_chain.append(idempotency_key, com_stage);
+
+        self.idempotency_cache
+            .insert(idempotency_key.to_string(), committed.clone());
+        Ok(committed)
+    }
+
+    /// Crash & Partition Recovery Engine (GFX-S09, Section 32).
+    /// Upon restart, scans journal for uncommitted in-flight operations (APPLYING or CLAIMED).
+    /// Immediately advances generation N -> N+1 (fencing stale in-flight effects)
+    /// and escalates uncommitted transactions to IN_DOUBT.
+    pub fn recover_from_crash(&mut self) -> Result<Vec<String>, ValidationError> {
+        self.verify_journal_integrity()?;
+
+        let mut in_flight_keys = Vec::new();
+        for (key, stage) in &self.effect_journal {
+            if matches!(
+                stage,
+                EffectStage::Applying { .. } | EffectStage::Claimed { .. }
+            ) {
+                in_flight_keys.push(key.clone());
+            }
+        }
+
+        if in_flight_keys.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        // Advance generation to fence any in-flight execution from the crashed session
+        let new_token = format!("fence-recovered-{}-post-crash", self.current_generation + 1);
+        self.advance_generation(new_token);
+
+        for key in &in_flight_keys {
+            warn!(
+                key = %key,
+                generation = self.current_generation,
+                "Crash recovery: escalating in-flight uncommitted effect to IN_DOUBT"
+            );
+            let in_doubt_disp = EffectDisposition::InDoubt {
+                reason: "Broker process restarted during in-flight effect execution".into(),
+                last_stage: "CRASH_RECOVERY".into(),
+                requires_reconciliation: true,
+            };
+            let stage = EffectStage::InDoubt {
+                reason: "Broker process restarted during in-flight effect execution".into(),
+                last_stage: "CRASH_RECOVERY".into(),
+                requires_reconciliation: true,
+                detected_at: Utc::now(),
+            };
+            self.effect_journal.insert(key.clone(), stage.clone());
+            self.journal_chain.append(key.clone(), stage);
+            self.idempotency_cache.insert(key.clone(), in_doubt_disp);
+        }
+
+        Ok(in_flight_keys)
     }
 
     /// Complete synchronous effect execution with full 7-stage transactional safety.
@@ -359,6 +473,9 @@ mod tests {
         let disp1 = broker.execute_effect(&req1).unwrap();
         assert!(matches!(disp1, EffectDisposition::Committed { .. }));
 
+        // Verify journal chain integrity
+        assert!(broker.verify_journal_integrity().is_ok());
+
         // Partition event: broker advances to generation 2
         broker.advance_generation("fence-2-task-root");
 
@@ -388,57 +505,61 @@ mod tests {
     }
 
     #[test]
-    fn test_7_stage_fsm_and_in_doubt_handling() {
-        let mut broker = AtomicEffectBroker::new(0, "fence-0-test");
+    fn test_crash_recovery_fences_in_flight_effects_and_escalates_to_in_doubt() {
+        let mut broker = AtomicEffectBroker::new(1, "fence-1-test");
         let lease = CapabilityLease::new(
-            "lease-test",
-            "worker-test",
-            "k8s/deployments",
-            vec!["patch".into()],
+            "lease-crash",
+            "worker-crash",
+            "cloud/storage",
+            vec!["upload".into()],
             Utc::now() + Duration::hours(1),
         );
-        let params = serde_json::json!({"image": "app:v2"});
-        let guard = AtomicEffectGuard::new("patch", "k8s/deployments", params.clone());
+        let params = serde_json::json!({"file": "data.tar.gz"});
+        let guard = AtomicEffectGuard::new("upload", "cloud/storage", params.clone());
 
         let req = EffectRequest {
             lease: &lease,
             guard: &guard,
-            received_generation: 0,
-            idempotency_key: "idem-timeout-1",
-            action: "patch",
-            target: "k8s/deployments",
+            received_generation: 1,
+            idempotency_key: "idem-crash-1",
+            action: "upload",
+            target: "cloud/storage",
             params: &params,
         };
 
-        // Step 1: Prepare
-        let prep = broker.prepare_effect(&req).unwrap();
-        assert!(matches!(prep, EffectDisposition::Prepared { .. }));
-
-        // Step 2: Claim
+        // Prepare -> Claim -> Applying
+        broker.prepare_effect(&req).unwrap();
         broker
-            .claim_effect("idem-timeout-1", "broker-worker")
+            .claim_effect("idem-crash-1", "broker-worker")
             .unwrap();
-
-        // Step 3: Applying
         broker
-            .record_applying("idem-timeout-1", "req-remote-001")
+            .record_applying("idem-crash-1", "req-remote-999")
             .unwrap();
 
-        // Step 4: Simulate network timeout / ambiguous partition -> IN_DOUBT
-        let doubt = broker
-            .reconcile_or_doubt("idem-timeout-1", Err("Connection reset by peer".into()))
-            .unwrap();
+        // Simulate abrupt process crash / power outage while in APPLYING
+        let recovered_keys = broker.recover_from_crash().unwrap();
+        assert_eq!(recovered_keys, vec!["idem-crash-1".to_string()]);
 
+        // Broker generation MUST have advanced to fence stale effects
+        assert_eq!(broker.current_generation, 2);
+
+        // Transaction is held in IN_DOUBT
+        let status = broker.idempotency_cache.get("idem-crash-1").unwrap();
         assert!(matches!(
-            doubt,
+            status,
             EffectDisposition::InDoubt {
                 requires_reconciliation: true,
                 ..
             }
         ));
 
-        // Subsequent retry with the same key is strictly held in IN_DOUBT (no blind retry!)
-        let retry_disp = broker.execute_effect(&req).unwrap();
-        assert!(matches!(retry_disp, EffectDisposition::InDoubt { .. }));
+        // Now resolve through explicit reconciliation
+        let rec = broker
+            .reconcile_in_doubt_effect("idem-crash-1", "sha256:verified-upload")
+            .unwrap();
+        assert!(matches!(rec, EffectDisposition::Committed { .. }));
+
+        // Journal chain is completely intact throughout all transitions
+        assert!(broker.verify_journal_integrity().is_ok());
     }
 }

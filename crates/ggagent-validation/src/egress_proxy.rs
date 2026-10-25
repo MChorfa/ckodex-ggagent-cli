@@ -8,11 +8,12 @@
 //! 3. Fail-Closed timeout: Defaults to 5 seconds. If decider is unreachable,
 //!    timeout expires, or decision is invalid, egress is strictly blocked.
 //! 4. Hardware/IMDS defeat: Explicitly blocks cloud metadata (169.254.169.254/32)
-//!    and private intranet ranges.
+//!    and private intranet ranges, including obfuscated encodings (decimal, hex, octal, IPv6-mapped).
 
 use crate::error::ValidationError;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
+use std::net::IpAddr;
 use std::time::Duration;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -78,6 +79,99 @@ impl EgressProxyEngine {
             .insert(domain.into(), (header_name.into(), token.into()));
     }
 
+    /// Canonicalize and detect IMDS (169.254.169.254) and link-local / loopback evasions.
+    /// Defeats decimal integer, octal, hex, bracketed IPv6, and IPv6-mapped IPv4 obfuscations.
+    pub fn is_forbidden_metadata_or_internal(host: &str) -> bool {
+        let clean = host.trim().trim_start_matches('[').trim_end_matches(']');
+
+        // Direct string match checks
+        if clean.eq_ignore_ascii_case("169.254.169.254")
+            || clean.starts_with("169.254.")
+            || clean.eq_ignore_ascii_case("fd00:ec2::254")
+            || clean.eq_ignore_ascii_case("localhost")
+            || clean == "127.0.0.1"
+            || clean == "0.0.0.0"
+            || clean == "::1"
+        {
+            return true;
+        }
+
+        // Decimal integer IP check: e.g. 2852039166 -> 169.254.169.254
+        if let Ok(u) = clean.parse::<u32>() {
+            let b0 = (u >> 24) as u8;
+            let b1 = (u >> 16) as u8;
+            if b0 == 169 && b1 == 254 {
+                return true;
+            }
+            if b0 == 127 || b0 == 0 {
+                return true;
+            }
+        }
+
+        // Hex / Octal dotted quad parsing e.g. 0xa9.0xfe.0xa9.0xfe or 0251.0376.0251.0376
+        let parts: Vec<&str> = clean.split('.').collect();
+        if parts.len() == 4 {
+            let parsed_bytes: Option<Vec<u8>> = parts
+                .iter()
+                .map(|p| {
+                    if let Some(stripped) = p.strip_prefix("0x").or_else(|| p.strip_prefix("0X")) {
+                        u8::from_str_radix(stripped, 16).ok()
+                    } else if p.starts_with('0') && p.len() > 1 {
+                        u8::from_str_radix(p, 8).ok()
+                    } else {
+                        p.parse::<u8>().ok()
+                    }
+                })
+                .collect();
+
+            if let Some(bytes) = parsed_bytes {
+                if bytes[0] == 169 && bytes[1] == 254 {
+                    return true;
+                }
+                if bytes[0] == 127 || bytes[0] == 0 {
+                    return true;
+                }
+            }
+        }
+
+        // Standard IP parser (including IPv6 mapped IPv4 e.g. ::ffff:169.254.169.254)
+        if let Ok(ip) = clean.parse::<IpAddr>() {
+            match ip {
+                IpAddr::V4(v4) => {
+                    let octets = v4.octets();
+                    if octets[0] == 169 && octets[1] == 254 {
+                        return true;
+                    }
+                    if v4.is_loopback() || v4.is_link_local() || v4.is_unspecified() {
+                        return true;
+                    }
+                }
+                IpAddr::V6(v6) => {
+                    let segments = v6.segments();
+                    // AWS IPv6 IMDS: fd00:ec2::254
+                    if segments[0] == 0xfd00 && segments[1] == 0x0ec2 && segments[7] == 0x0254 {
+                        return true;
+                    }
+                    if v6.is_loopback() || v6.is_unspecified() {
+                        return true;
+                    }
+                    // IPv6-mapped IPv4
+                    if let Some(v4) = v6.to_ipv4_mapped() {
+                        let oct = v4.octets();
+                        if oct[0] == 169 && oct[1] == 254 {
+                            return true;
+                        }
+                        if v4.is_loopback() {
+                            return true;
+                        }
+                    }
+                }
+            }
+        }
+
+        false
+    }
+
     /// Evaluate an egress request through the external decider logic.
     pub fn evaluate_request(
         &self,
@@ -93,14 +187,13 @@ impl EgressProxyEngine {
             )));
         }
 
-        // 2. Hardware / Cloud IMDS Defeat
-        if req.destination_host == "169.254.169.254"
-            || req.destination_host.starts_with("169.254.")
-            || req.destination_host == "fd00:ec2::254"
-        {
+        // 2. Hardware / Cloud IMDS Defeat with Anti-Obfuscation Parsing
+        if Self::is_forbidden_metadata_or_internal(&req.destination_host) {
             return Ok(EgressProxyDecision::Deny {
-                reason: "Cloud Instance Metadata Service (IMDS) access is strictly forbidden"
-                    .into(),
+                reason: format!(
+                    "Destination host '{}' resolves to prohibited metadata service or internal loopback",
+                    req.destination_host
+                ),
             });
         }
 
@@ -135,23 +228,49 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_egress_proxy_imds_blocking() {
+    fn test_egress_proxy_imds_blocking_and_obfuscations() {
         let engine = EgressProxyEngine::new(vec!["api.github.com".into()], Duration::from_secs(5));
 
-        let imds_req = EgressProxyRequest {
-            client_id: "agent-001".into(),
-            method: "GET".into(),
-            url: "http://169.254.169.254/latest/meta-data/".into(),
-            destination_host: "169.254.169.254".into(),
-            destination_port: 80,
-            headers: BTreeMap::new(),
-            body_digest: None,
-        };
+        // Test vectors for IMDS obfuscation
+        let evasion_vectors = vec![
+            "169.254.169.254",
+            "2852039166",               // decimal integer
+            "0xa9.0xfe.0xa9.0xfe",      // hex dotted quad
+            "0251.0376.0251.0376",      // octal dotted quad
+            "[::ffff:169.254.169.254]", // IPv6 mapped IPv4
+            "fd00:ec2::254",            // AWS IPv6 IMDS
+            "[fd00:ec2::254]",
+            "127.0.0.1", // localhost
+            "localhost",
+        ];
 
-        let decision = engine
-            .evaluate_request(&imds_req, Duration::from_millis(50))
-            .unwrap();
-        assert!(matches!(decision, EgressProxyDecision::Deny { .. }));
+        for host in evasion_vectors {
+            let req = EgressProxyRequest {
+                client_id: "agent-001".into(),
+                method: "GET".into(),
+                url: format!("http://{}/latest/meta-data/", host),
+                destination_host: host.into(),
+                destination_port: 80,
+                headers: BTreeMap::new(),
+                body_digest: None,
+            };
+
+            let decision = engine
+                .evaluate_request(&req, Duration::from_millis(10))
+                .unwrap();
+            match decision {
+                EgressProxyDecision::Deny { reason } => {
+                    assert!(
+                        reason.contains("prohibited metadata service")
+                            || reason.contains("not in the approved"),
+                        "Host {} should be denied, got reason: {}",
+                        host,
+                        reason
+                    );
+                }
+                _ => panic!("Egress to {} must be denied!", host),
+            }
+        }
     }
 
     #[test]

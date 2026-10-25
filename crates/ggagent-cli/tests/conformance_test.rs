@@ -1701,7 +1701,11 @@ fn test_lab17_srt_egress_proxy_external_decider_and_credential_injection() {
         .unwrap();
     match imds_dec {
         EgressProxyDecision::Deny { reason } => {
-            assert!(reason.contains("IMDS"));
+            assert!(
+                reason.contains("prohibited metadata service") || reason.contains("IMDS"),
+                "Expected metadata denial reason, got: {}",
+                reason
+            );
         }
         _ => panic!("IMDS must be denied"),
     }
@@ -1750,4 +1754,217 @@ fn test_lab17_srt_egress_proxy_external_decider_and_credential_injection() {
         timeout_res.is_err(),
         "Request exceeding 5s timeout must fail closed"
     );
+}
+
+#[test]
+fn test_lab18_tamper_evident_journal_chain_and_corruption_detection() {
+    use ggagent_validation::{AtomicEffectBroker, EffectRequest};
+
+    let mut broker = AtomicEffectBroker::new(1, "fence-1-lab18");
+    let mut lease = CapabilityLease::new(
+        "lease-lab18",
+        "worker-secure",
+        "database/records",
+        vec!["insert".into()],
+        chrono::Utc::now() + chrono::Duration::hours(1),
+    );
+    lease.advance_generation();
+    let params = serde_json::json!({"row": "user_data"});
+    let guard = AtomicEffectGuard::new("insert", "database/records", params.clone());
+
+    let req = EffectRequest {
+        lease: &lease,
+        guard: &guard,
+        received_generation: 1,
+        idempotency_key: "idem-lab18-001",
+        action: "insert",
+        target: "database/records",
+        params: &params,
+    };
+
+    // Execute full 7-stage effect
+    let disp = broker.execute_effect(&req).expect("Execute succeeds");
+    assert!(matches!(disp, EffectDisposition::Committed { .. }));
+
+    // Journal chain must have valid cryptographic integrity across all transitions
+    assert!(broker.verify_journal_integrity().is_ok());
+
+    // Adversarial tampering attack: an attacker with memory/storage access mutates a past entry
+    broker.journal_chain.entries[0].idempotency_key = "forged-idempotency-key".into();
+
+    // Verification MUST immediately catch the hash decoherence (GFX-S08)
+    let verify_err = broker.verify_journal_integrity();
+    assert!(verify_err.is_err());
+    let err_str = verify_err.unwrap_err().to_string();
+    assert!(err_str.contains("Journal chain corruption"));
+}
+
+#[test]
+fn test_lab19_in_flight_crash_recovery_advances_generation_and_fences() {
+    use ggagent_validation::{AtomicEffectBroker, EffectRequest};
+
+    let mut broker = AtomicEffectBroker::new(5, "fence-5-pre-crash");
+    let mut lease = CapabilityLease::new(
+        "lease-lab19",
+        "worker-alpha",
+        "vault/secrets/pki",
+        vec!["rotate".into()],
+        chrono::Utc::now() + chrono::Duration::hours(1),
+    );
+    lease.generation = 5;
+    lease.fencing_token = "fence-5-lease-lab19".into();
+
+    let params = serde_json::json!({"cert_id": "root-ca"});
+    let guard = AtomicEffectGuard::new("rotate", "vault/secrets/pki", params.clone());
+
+    let req = EffectRequest {
+        lease: &lease,
+        guard: &guard,
+        received_generation: 5,
+        idempotency_key: "idem-lab19-inflight",
+        action: "rotate",
+        target: "vault/secrets/pki",
+        params: &params,
+    };
+
+    // Prepare and claim
+    broker.prepare_effect(&req).unwrap();
+    broker
+        .claim_effect("idem-lab19-inflight", "broker-active")
+        .unwrap();
+    broker
+        .record_applying("idem-lab19-inflight", "rpc-active-99")
+        .unwrap();
+
+    // Crash occurs while in APPLYING!
+    // Crash recovery protocol is invoked upon daemon reboot:
+    let in_doubt_keys = broker.recover_from_crash().expect("Recovery succeeds");
+    assert_eq!(in_doubt_keys, vec!["idem-lab19-inflight".to_string()]);
+
+    // Invariant: Generation MUST advance (5 -> 6) to fence any zombie RPC from the crashed session
+    assert_eq!(broker.current_generation, 6);
+    assert!(broker
+        .authoritative_fencing_token
+        .contains("fence-recovered-6"));
+
+    // In-flight effect is held in IN_DOUBT (no blind retry allowed!)
+    let cached = broker.idempotency_cache.get("idem-lab19-inflight").unwrap();
+    assert!(matches!(
+        cached,
+        EffectDisposition::InDoubt {
+            requires_reconciliation: true,
+            ..
+        }
+    ));
+
+    // Zombie worker retrying with generation 5 lease is strictly FENCED
+    let retry_disp = broker.execute_effect(&req).unwrap();
+    // Because it's IN_DOUBT in idempotency cache, it returns InDoubt
+    assert!(matches!(retry_disp, EffectDisposition::InDoubt { .. }));
+
+    // Explicit postcondition reconciliation commits the transaction with receipt
+    let rec_disp = broker
+        .reconcile_in_doubt_effect("idem-lab19-inflight", "sha256:verified-pki-rotation")
+        .expect("Reconciliation commits");
+    match rec_disp {
+        EffectDisposition::Committed {
+            generation,
+            effect_digest,
+            ..
+        } => {
+            assert_eq!(generation, 6);
+            assert_eq!(effect_digest, "sha256:verified-pki-rotation");
+        }
+        _ => panic!("Expected committed postcondition"),
+    }
+}
+
+#[test]
+fn test_lab20_imds_obfuscated_encoding_evasion_defeat() {
+    use ggagent_validation::{EgressProxyDecision, EgressProxyEngine, EgressProxyRequest};
+    use std::collections::BTreeMap;
+    use std::time::Duration;
+
+    let engine = EgressProxyEngine::new(vec!["api.github.com".into()], Duration::from_secs(5));
+
+    // Comprehensive adversarial evasion test cases
+    let obfuscations = vec![
+        ("169.254.169.254", "Standard IPv4 IMDS"),
+        ("2852039166", "Dword / Decimal Integer notation"),
+        ("0xa9.0xfe.0xa9.0xfe", "Hex dotted-quad notation"),
+        ("0251.0376.0251.0376", "Octal dotted-quad notation"),
+        ("[::ffff:169.254.169.254]", "Bracketed IPv6-mapped IPv4"),
+        ("::ffff:169.254.169.254", "Unbracketed IPv6-mapped IPv4"),
+        ("fd00:ec2::254", "AWS IPv6 IMDS endpoint"),
+        ("[fd00:ec2::254]", "Bracketed AWS IPv6 IMDS endpoint"),
+        ("127.0.0.1", "Localhost IPv4"),
+        ("localhost", "Localhost string"),
+        ("::1", "Localhost IPv6"),
+    ];
+
+    for (evasion_host, description) in obfuscations {
+        let req = EgressProxyRequest {
+            client_id: "malicious-agent".into(),
+            method: "GET".into(),
+            url: format!("http://{}/credentials", evasion_host),
+            destination_host: evasion_host.into(),
+            destination_port: 80,
+            headers: BTreeMap::new(),
+            body_digest: None,
+        };
+
+        let decision = engine
+            .evaluate_request(&req, Duration::from_millis(5))
+            .unwrap();
+        match decision {
+            EgressProxyDecision::Deny { reason } => {
+                assert!(
+                    reason.contains("prohibited metadata service")
+                        || reason.contains("not in the approved"),
+                    "Evasion '{}' ({}) must be denied with security reason, got: {}",
+                    evasion_host,
+                    description,
+                    reason
+                );
+            }
+            _ => panic!(
+                "Evasion '{}' ({}) was permitted by egress proxy!",
+                evasion_host, description
+            ),
+        }
+    }
+}
+
+#[test]
+fn test_lab21_gfx_s17_hard_veto_dominates_multi_model_consensus() {
+    use ggagent_kernel::error::KernelError;
+    use ggagent_kernel::governed_execution::HardVetoEvaluator;
+
+    let unanimous_models = vec![
+        "gemini-2.5-pro".into(),
+        "claude-3.7-sonnet".into(),
+        "o3-mini".into(),
+        "deepseek-r1".into(),
+    ];
+
+    // Case 1: Unanimous consensus (100%) without veto passes
+    let clean = HardVetoEvaluator::evaluate_consensus(1.0, &unanimous_models, None);
+    assert!(clean.is_ok());
+
+    // Case 2: Even with 100% agreement of 4 frontier models, a single hard veto
+    // categorically forces a NON_CONFORMANT / AntiInvariantViolation rejection (GFX-S17)
+    let veto_attempt = HardVetoEvaluator::evaluate_consensus(
+        1.0,
+        &unanimous_models,
+        Some("ANTI_INVARIANT_UNAUTHORIZED_EXTERNAL_MUTATION"),
+    );
+    assert!(veto_attempt.is_err());
+    match veto_attempt.unwrap_err() {
+        KernelError::AntiInvariantViolation { invariant, context } => {
+            assert_eq!(invariant, "ANTI_INVARIANT_UNAUTHORIZED_EXTERNAL_MUTATION");
+            assert!(context.contains("GFX-S17 Dominance"));
+            assert!(context.contains("100.0% consensus"));
+        }
+        other => panic!("Expected AntiInvariantViolation, got {:?}", other),
+    }
 }

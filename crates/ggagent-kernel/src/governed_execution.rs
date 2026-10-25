@@ -12,6 +12,7 @@ use crate::error::KernelError;
 use crate::lease::CapabilityLease;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 
 /// Policy-selected isolation classes matching threat models (Section 5).
 /// Ordered strictly by isolation strength (rank 1 through 5).
@@ -240,6 +241,173 @@ pub enum EffectStage {
     },
 }
 
+/// Tamper-evident, cryptographic hash-chained journal entry (GFX-S08).
+/// Every state transition is cryptographically bound to the previous entry hash:
+/// H_i = SHA-256(sequence || ":" || prev_hash || ":" || idempotency_key || ":" || stage_json)
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct JournalEntry {
+    pub sequence_number: u64,
+    pub timestamp: DateTime<Utc>,
+    pub idempotency_key: String,
+    pub stage: EffectStage,
+    pub previous_entry_hash: String,
+    pub entry_hash: String,
+}
+
+impl JournalEntry {
+    pub fn compute_hash(
+        sequence_number: u64,
+        previous_entry_hash: &str,
+        idempotency_key: &str,
+        stage: &EffectStage,
+    ) -> String {
+        let mut hasher = Sha256::new();
+        hasher.update(sequence_number.to_be_bytes());
+        hasher.update(b":");
+        hasher.update(previous_entry_hash.as_bytes());
+        hasher.update(b":");
+        hasher.update(idempotency_key.as_bytes());
+        hasher.update(b":");
+        let stage_json = serde_json::to_string(stage).unwrap_or_default();
+        hasher.update(stage_json.as_bytes());
+        hex::encode(hasher.finalize())
+    }
+
+    pub fn new(
+        sequence_number: u64,
+        previous_entry_hash: String,
+        idempotency_key: String,
+        stage: EffectStage,
+    ) -> Self {
+        let hash = Self::compute_hash(
+            sequence_number,
+            &previous_entry_hash,
+            &idempotency_key,
+            &stage,
+        );
+        Self {
+            sequence_number,
+            timestamp: Utc::now(),
+            idempotency_key,
+            stage,
+            previous_entry_hash,
+            entry_hash: hash,
+        }
+    }
+
+    pub fn verify_integrity(&self) -> bool {
+        let expected = Self::compute_hash(
+            self.sequence_number,
+            &self.previous_entry_hash,
+            &self.idempotency_key,
+            &self.stage,
+        );
+        expected == self.entry_hash
+    }
+}
+
+/// Append-only cryptographic journal chain.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct JournalChain {
+    pub entries: Vec<JournalEntry>,
+    pub genesis_hash: String,
+}
+
+impl Default for JournalChain {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl JournalChain {
+    pub const GENESIS_HASH: &'static str =
+        "0000000000000000000000000000000000000000000000000000000000000000";
+
+    pub fn new() -> Self {
+        Self {
+            entries: Vec::new(),
+            genesis_hash: Self::GENESIS_HASH.to_string(),
+        }
+    }
+
+    pub fn append(
+        &mut self,
+        idempotency_key: impl Into<String>,
+        stage: EffectStage,
+    ) -> &JournalEntry {
+        let seq = self.entries.len() as u64;
+        let prev_hash = self
+            .entries
+            .last()
+            .map(|e| e.entry_hash.clone())
+            .unwrap_or_else(|| self.genesis_hash.clone());
+
+        let entry = JournalEntry::new(seq, prev_hash, idempotency_key.into(), stage);
+        self.entries.push(entry);
+        self.entries.last().unwrap()
+    }
+
+    /// Cryptographically verify the entire journal chain from genesis to head.
+    pub fn verify_chain(&self) -> Result<(), KernelError> {
+        let mut expected_prev = self.genesis_hash.as_str();
+        for (idx, entry) in self.entries.iter().enumerate() {
+            if entry.sequence_number != idx as u64 {
+                return Err(KernelError::DecoherenceDetected {
+                    admitted: format!("seq_{}", idx),
+                    runtime: format!("seq_{}", entry.sequence_number),
+                });
+            }
+
+            if entry.previous_entry_hash != expected_prev {
+                return Err(KernelError::DecoherenceDetected {
+                    admitted: expected_prev.to_string(),
+                    runtime: entry.previous_entry_hash.clone(),
+                });
+            }
+
+            if !entry.verify_integrity() {
+                return Err(KernelError::DecoherenceDetected {
+                    admitted: entry.entry_hash.clone(),
+                    runtime: "corrupted_hash".to_string(),
+                });
+            }
+
+            expected_prev = &entry.entry_hash;
+        }
+        Ok(())
+    }
+}
+
+/// Hard Invariant Dominance Evaluator (GFX-S17 / Section 23).
+/// Invariant: Hard-veto Atomic Guards cannot be overridden by multi-model consensus,
+/// high aggregate scores, cost optimization, or degraded policy.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct HardVetoEvaluator;
+
+impl HardVetoEvaluator {
+    /// Evaluates multi-model consensus and hard veto.
+    /// If ANY hard veto is tripped, the verdict is strictly REJECTED / NON-CONFORMANT,
+    /// regardless of 100% agreement across all models.
+    pub fn evaluate_consensus(
+        consensus_score: f64,
+        participating_models: &[String],
+        tripped_hard_veto: Option<&str>,
+    ) -> Result<(), KernelError> {
+        if let Some(veto) = tripped_hard_veto {
+            return Err(KernelError::AntiInvariantViolation {
+                invariant: veto.to_string(),
+                context: format!(
+                    "GFX-S17 Dominance: Hard veto '{}' overrides {:.1}% consensus across {:?} models",
+                    veto,
+                    consensus_score * 100.0,
+                    participating_models
+                ),
+            });
+        }
+        Ok(())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -316,5 +484,60 @@ mod tests {
                 ..
             }
         ));
+    }
+
+    #[test]
+    fn test_journal_chain_hash_chaining_and_tamper_detection() {
+        let mut chain = JournalChain::new();
+        chain.append(
+            "task-01",
+            EffectStage::Proposed {
+                proposed_at: Utc::now(),
+            },
+        );
+        chain.append(
+            "task-01",
+            EffectStage::Authorized {
+                authorized_at: Utc::now(),
+            },
+        );
+        chain.append(
+            "task-01",
+            EffectStage::Prepared {
+                request_digest: "sha256:req".into(),
+                fencing_token: "fence-1".into(),
+                prepared_at: Utc::now(),
+            },
+        );
+
+        // Verification of intact chain passes
+        assert!(chain.verify_chain().is_ok());
+
+        // Tampering with an intermediate entry breaks verification
+        chain.entries[1].idempotency_key = "tampered-task-id".into();
+        assert!(chain.verify_chain().is_err());
+    }
+
+    #[test]
+    fn test_hard_veto_dominates_100_percent_consensus() {
+        let models = vec![
+            "gemini-2.5-pro".into(),
+            "claude-3.7-sonnet".into(),
+            "gpt-4.5".into(),
+            "deepseek-r1".into(),
+        ];
+
+        // Without veto, consensus is accepted
+        assert!(HardVetoEvaluator::evaluate_consensus(1.0, &models, None).is_ok());
+
+        // With hard veto, 100% agreement of all 4 frontier models is categorically REJECTED
+        let res = HardVetoEvaluator::evaluate_consensus(
+            1.0,
+            &models,
+            Some("MANDATORY_ANTI_EXFILTRATION_BREACH"),
+        );
+        assert!(res.is_err());
+        let err = res.unwrap_err();
+        assert!(matches!(err, KernelError::AntiInvariantViolation { .. }));
     }
 }
