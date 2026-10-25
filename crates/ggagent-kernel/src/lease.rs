@@ -118,10 +118,19 @@ impl CapabilityLease {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "status", rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum EffectDisposition {
+    Prepared {
+        prepared_id: String,
+        fencing_token: String,
+    },
     Committed {
         receipt_id: String,
         effect_digest: String,
         generation: u64,
+    },
+    InDoubt {
+        reason: String,
+        last_stage: String,
+        requires_reconciliation: bool,
     },
     Denied {
         reason: String,

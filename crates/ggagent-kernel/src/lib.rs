@@ -19,6 +19,7 @@ pub mod checkpoint;
 pub mod conformance;
 pub mod coordinated_states;
 pub mod error;
+pub mod governed_execution;
 pub mod handoff;
 pub mod lease;
 pub mod loops;
@@ -45,6 +46,9 @@ pub use coordinated_states::{
     FailureClassification, ReclamationLifecycle,
 };
 pub use error::KernelError;
+pub use governed_execution::{
+    ContextFault, ContextRoot, EffectStage, IsolationClass, IsolationContract,
+};
 pub use handoff::{HandoffManifest, HandoffParams};
 pub use lease::{AtomicEffectGuard, CapabilityLease, EffectDisposition};
 pub use loops::{

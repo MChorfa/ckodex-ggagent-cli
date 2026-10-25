@@ -17,6 +17,9 @@ use ggagent_kernel::coordinated_states::{
     AuthorityLifecycle, CandidateLifecycle, CoordinatedTaskState, ExecutionLifecycle,
     FailureClassification, ReclamationLifecycle,
 };
+use ggagent_kernel::governed_execution::{
+    ContextFault, ContextRoot, IsolationClass, IsolationContract,
+};
 use ggagent_kernel::handoff::{HandoffManifest, HandoffParams};
 use ggagent_kernel::lease::{AtomicEffectGuard, CapabilityLease, EffectDisposition};
 use ggagent_kernel::network::NetworkEgressPolicy;
@@ -30,7 +33,8 @@ use ggagent_transport::a2a_rpc::{A2aRpcHandler, JsonRpcRequest};
 use ggagent_transport::cross_harness::{CrossHarnessBridge, HarnessFamily};
 use ggagent_transport::{ArdService, TransportServer};
 use ggagent_validation::{
-    AgentCardValidator, ArdValidator, AtomicEffectBroker, EffectRequest, HandoffValidator,
+    AgentCardValidator, ArdValidator, AtomicEffectBroker, ContextGuard, EffectRequest,
+    EgressProxyDecision, EgressProxyEngine, EgressProxyRequest, HandoffValidator, IsolationGuard,
     MeshOrchestrator, NetworkEgressGuard, ReplayEngine, SbomAnalyzer, SbomToolBridge, SecretGuard,
     SecurityGuards, WorkspaceStagingGuard,
 };
@@ -119,7 +123,7 @@ enum Commands {
         strict: bool,
     },
 
-    /// Quick status check of all 20 runtime subsystems (alias for doctor)
+    /// Quick status check of all 24 runtime subsystems (alias for doctor)
     Status,
 
     /// Generate shell autocompletion scripts (bash, zsh, fish, powershell, elvish)
@@ -747,6 +751,123 @@ fn run_doctor_diagnostics() -> Vec<DiagnosticItem> {
         name: "SBOM Semantic Analyzer".into(),
         status: true,
         details: "Semantic diff, quality scoring & CRA/NTIA compliance active".into(),
+    });
+
+    // 21. 7-Stage Effect Safety Journal & InDoubt Handling (GFX-S08, GFX-S09)
+    let mut journal_broker = AtomicEffectBroker::new(1, "fence-1-diag-j");
+    let j_lease = CapabilityLease::new(
+        "lease-diag-j",
+        "diag-worker",
+        "k8s/deployments",
+        vec!["patch".into()],
+        chrono::Utc::now() + chrono::Duration::hours(1),
+    );
+    let j_params = serde_json::json!({"replica": 3});
+    let j_guard = AtomicEffectGuard::new("patch", "k8s/deployments", j_params.clone());
+    let j_req = EffectRequest {
+        lease: &j_lease,
+        guard: &j_guard,
+        received_generation: 1,
+        idempotency_key: "idem-diag-j",
+        action: "patch",
+        target: "k8s/deployments",
+        params: &j_params,
+    };
+    let prep_ok = matches!(
+        journal_broker.prepare_effect(&j_req),
+        Ok(EffectDisposition::Prepared { .. })
+    );
+    let _ = journal_broker.claim_effect("idem-diag-j", "broker-diag");
+    let _ = journal_broker.record_applying("idem-diag-j", "rem-01");
+    let doubt_ok = matches!(
+        journal_broker.reconcile_or_doubt("idem-diag-j", Err("ambiguous timeout".into())),
+        Ok(EffectDisposition::InDoubt {
+            requires_reconciliation: true,
+            ..
+        })
+    );
+    checks.push(DiagnosticItem {
+        id: 21,
+        name: "7-Stage Effect Safety Journal".into(),
+        status: prep_ok && doubt_ok,
+        details: "PREPARED/CLAIMED fencing & IN_DOUBT reconciliation active (GFX-S08/S09)".into(),
+    });
+
+    // 22. Isolation Spectrum & Non-Downgrade Enforcement (GFX-S05)
+    let iso_contract = IsolationContract::new(IsolationClass::MicroVm, "tenant-gov", "agent-eval");
+    let iso_ok1 = iso_contract
+        .validate_host_runtime(&IsolationClass::MicroVm)
+        .is_ok();
+    let iso_ok2 = iso_contract
+        .validate_host_runtime(&IsolationClass::LocalDev)
+        .is_err();
+    let iso_ok3 = IsolationGuard::evaluate_placement(
+        "hostile",
+        IsolationClass::MicroVm,
+        IsolationClass::MicroVm,
+    )
+    .is_ok();
+    checks.push(DiagnosticItem {
+        id: 22,
+        name: "Isolation Spectrum & Non-Downgrade".into(),
+        status: iso_ok1 && iso_ok2 && iso_ok3,
+        details: "SRT/gVisor/MicroVM hierarchy & GFX-S05 non-downgrade active".into(),
+    });
+
+    // 23. Immutable ContextRoot & ContextFault Detection (Section 2.2)
+    let ctx_lease = CapabilityLease::new(
+        "lease-ctx-diag",
+        "principal-data",
+        "db/embeddings",
+        vec!["read".into()],
+        chrono::Utc::now() + chrono::Duration::hours(1),
+    );
+    let ctx_root = ContextRoot::new(
+        "ctx-diag-001",
+        "lease-ctx-diag",
+        "sha256:decision",
+        "sha256:obs",
+        "CONFIDENTIAL",
+    );
+    let ctx_ok1 = ContextGuard::verify_context_precedence(&ctx_root, &ctx_lease).is_ok();
+    let stale_fault = ContextFault::Stale {
+        current_epoch: 2,
+        requested_epoch: 1,
+    };
+    let ctx_ok2 = ContextGuard::assert_no_context_fault(Some(&stale_fault)).is_err();
+    checks.push(DiagnosticItem {
+        id: 23,
+        name: "Immutable ContextRoot & ContextFault".into(),
+        status: ctx_ok1 && ctx_ok2,
+        details: "Post-authority binding & ContextFault detection active (Section 2.2)".into(),
+    });
+
+    // 24. Governed Egress Proxy & External Decider (Anthropic SRT Pattern)
+    let mut egress_engine = EgressProxyEngine::new(
+        vec!["api.github.com".into()],
+        std::time::Duration::from_secs(5),
+    );
+    egress_engine.register_scoped_credential(
+        "api.github.com",
+        "Authorization",
+        "Bearer masked-token",
+    );
+    let eg_req = EgressProxyRequest {
+        client_id: "agent-001".into(),
+        method: "GET".into(),
+        url: "https://api.github.com/user".into(),
+        destination_host: "api.github.com".into(),
+        destination_port: 443,
+        headers: BTreeMap::new(),
+        body_digest: None,
+    };
+    let eg_decision = egress_engine.evaluate_request(&eg_req, std::time::Duration::from_millis(50));
+    let eg_ok = matches!(eg_decision, Ok(EgressProxyDecision::Allow { ref injected_headers }) if injected_headers.contains_key("Authorization"));
+    checks.push(DiagnosticItem {
+        id: 24,
+        name: "Governed Egress Proxy".into(),
+        status: eg_ok,
+        details: "External policy decider, credential masking & 5s timeout active".into(),
     });
 
     checks

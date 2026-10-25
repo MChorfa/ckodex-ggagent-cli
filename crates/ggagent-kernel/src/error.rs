@@ -71,4 +71,17 @@ pub enum KernelError {
 
     #[error("Invalid partitioned handoff: {reason}")]
     InvalidHandoff { reason: String },
+
+    #[error("Isolation contract violation: required={required}, available={available}, reason: {reason}")]
+    IsolationViolation {
+        required: String,
+        available: String,
+        reason: String,
+    },
+
+    #[error("Context fault detected: {fault}")]
+    ContextFaultDetected { fault: String },
+
+    #[error("Indeterminate effect outcome (IN_DOUBT): reason={reason}, last_stage={last_stage}")]
+    InDoubtEffectError { reason: String, last_stage: String },
 }

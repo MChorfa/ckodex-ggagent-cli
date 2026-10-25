@@ -65,4 +65,16 @@ pub enum ValidationError {
 
     #[error("SBOM semantic analysis failed: {0}")]
     SbomAnalysisError(String),
+
+    #[error("Isolation contract violation: {0}")]
+    IsolationViolation(String),
+
+    #[error("Context fault violation: {0}")]
+    ContextFaultViolation(String),
+
+    #[error("Effect indeterminate (IN_DOUBT): {reason}, last_stage={last_stage}")]
+    InDoubtViolation { reason: String, last_stage: String },
+
+    #[error("Egress proxy policy violation: {0}")]
+    EgressProxyViolation(String),
 }

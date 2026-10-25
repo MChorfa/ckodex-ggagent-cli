@@ -1439,3 +1439,315 @@ fn test_m2_governed_lifecycle_end_to_end() {
         }
     ));
 }
+
+#[test]
+fn test_lab14_invarith_7_stage_effect_safety_and_in_doubt_fsm() {
+    use ggagent_kernel::governed_execution::EffectStage;
+    use ggagent_validation::{AtomicEffectBroker, EffectRequest};
+
+    let mut broker = AtomicEffectBroker::new(1, "fence-1-lab14");
+    let mut lease = CapabilityLease::new(
+        "lease-lab14",
+        "worker-alpha",
+        "kubernetes/deployments/production",
+        vec!["rollout".into()],
+        chrono::Utc::now() + chrono::Duration::hours(2),
+    );
+    lease.advance_generation();
+    let params = serde_json::json!({
+        "service": "checkout-api",
+        "image": "registry.enterprise.io/checkout:v2.1.0@sha256:abcd"
+    });
+    let guard = AtomicEffectGuard::new(
+        "rollout",
+        "kubernetes/deployments/production",
+        params.clone(),
+    );
+
+    let req = EffectRequest {
+        lease: &lease,
+        guard: &guard,
+        received_generation: 1,
+        idempotency_key: "idem-lab14-rollout-001",
+        action: "rollout",
+        target: "kubernetes/deployments/production",
+        params: &params,
+    };
+
+    // Stage 1 & 2 & 3: Prepare effect before consequential side effects (GFX-S08)
+    let prep_disp = broker
+        .prepare_effect(&req)
+        .expect("Prepare effect succeeds");
+    match prep_disp {
+        EffectDisposition::Prepared {
+            ref fencing_token, ..
+        } => {
+            assert!(fencing_token.contains("fence-1"));
+        }
+        _ => panic!("Expected Prepared disposition"),
+    }
+
+    // Verify stage in journal
+    let stage = broker.effect_journal.get("idem-lab14-rollout-001").unwrap();
+    assert!(matches!(stage, EffectStage::Prepared { .. }));
+
+    // Stage 4: Broker exclusively claims the prepared effect with CAS (GFX-S08)
+    let claim_token = broker
+        .claim_effect("idem-lab14-rollout-001", "broker-principal-secure")
+        .unwrap();
+    assert!(claim_token.contains("fence-1"));
+
+    // Stage 5: Broker records APPLYING under broker-owned capability
+    broker
+        .record_applying("idem-lab14-rollout-001", "k8s-rpc-call-771")
+        .unwrap();
+
+    // Stage 6: Ambiguous external network outcome (upstream timeout / partition)
+    // GFX-S09: On timeout/crash/partial outcome: mark IN_DOUBT, observe and reconcile before any retry!
+    let in_doubt_disp = broker
+        .reconcile_or_doubt(
+            "idem-lab14-rollout-001",
+            Err("ETIMEDOUT: Connection reset during mutate".into()),
+        )
+        .expect("Transitions to InDoubt");
+
+    match in_doubt_disp {
+        EffectDisposition::InDoubt {
+            ref reason,
+            ref last_stage,
+            requires_reconciliation,
+        } => {
+            assert!(reason.contains("ETIMEDOUT"));
+            assert_eq!(last_stage, "APPLYING");
+            assert!(requires_reconciliation);
+        }
+        _ => panic!("Expected InDoubt disposition"),
+    }
+
+    // Stage 7: Subsequent blind retry MUST be blocked with InDoubt (Defeats blind retries & duplicate mutations)
+    let retry_disp = broker.execute_effect(&req).expect("Retry evaluation");
+    assert!(matches!(
+        retry_disp,
+        EffectDisposition::InDoubt {
+            requires_reconciliation: true,
+            ..
+        }
+    ));
+
+    // Reconciliation resolution: postcondition read-back verifies desired state achieved
+    let reconciled_disp = broker
+        .reconcile_or_doubt(
+            "idem-lab14-rollout-001",
+            Ok("sha256:verified-postcondition-digest".into()),
+        )
+        .expect("Reconciliation succeeds");
+
+    match reconciled_disp {
+        EffectDisposition::Committed {
+            ref effect_digest,
+            generation,
+            ..
+        } => {
+            assert_eq!(effect_digest, "sha256:verified-postcondition-digest");
+            assert_eq!(generation, 1);
+        }
+        _ => panic!("Expected Committed disposition after reconciliation"),
+    }
+}
+
+#[test]
+fn test_lab15_isolation_class_hierarchy_and_downgrade_prevention() {
+    use ggagent_kernel::governed_execution::{IsolationClass, IsolationContract};
+    use ggagent_validation::IsolationGuard;
+
+    // Isolation ranks: LocalDev (1) < WasiComponent (2) < OciGvisor (3) < MicroVm (4) < ConfidentialVm (5)
+    assert!(IsolationClass::ConfidentialVm > IsolationClass::MicroVm);
+    assert!(IsolationClass::MicroVm > IsolationClass::OciGvisor);
+    assert!(IsolationClass::OciGvisor > IsolationClass::WasiComponent);
+    assert!(IsolationClass::WasiComponent > IsolationClass::LocalDev);
+
+    // GFX-S05: Hostile agent workloads mandate MicroVm hardware isolation
+    let hostile_check = IsolationGuard::evaluate_placement(
+        "hostile",
+        IsolationClass::LocalDev,
+        IsolationClass::LocalDev,
+    );
+    assert!(
+        hostile_check.is_err(),
+        "Hostile workload must reject LocalDev process sandbox"
+    );
+
+    // Hostile workload with MicroVm contract on gVisor host must fail closed (No silent downgrade!)
+    let contract = IsolationContract::new(
+        IsolationClass::MicroVm,
+        "tenant-finance",
+        "untrusted-tool-executor",
+    );
+    assert!(
+        !contract.allow_downgrade,
+        "Default allow_downgrade must be false"
+    );
+
+    let downgrade_res =
+        IsolationGuard::verify_isolation_boundary(&contract, &IsolationClass::OciGvisor);
+    assert!(
+        downgrade_res.is_err(),
+        "Must fail closed when host provides OciGvisor but MicroVm was contracted"
+    );
+
+    // Valid placement on hardware-isolated MicroVm
+    let valid_res = IsolationGuard::verify_isolation_boundary(&contract, &IsolationClass::MicroVm);
+    assert!(
+        valid_res.is_ok(),
+        "Must succeed when host matches required isolation"
+    );
+
+    // Valid placement on higher isolation (ConfidentialVm satisfies MicroVm)
+    let enclave_res =
+        IsolationGuard::verify_isolation_boundary(&contract, &IsolationClass::ConfidentialVm);
+    assert!(
+        enclave_res.is_ok(),
+        "ConfidentialVm meets MicroVm minimum requirement"
+    );
+}
+
+#[test]
+fn test_lab16_context_root_authority_precedence_and_fault_defense() {
+    use ggagent_kernel::governed_execution::{ContextFault, ContextRoot};
+    use ggagent_validation::ContextGuard;
+
+    let lease = CapabilityLease::new(
+        "lease-auth-ctx-001",
+        "principal:data-governance",
+        "vector-db/customer-corpus",
+        vec!["read".into(), "embed".into()],
+        chrono::Utc::now() + chrono::Duration::hours(1),
+    );
+
+    let context_root = ContextRoot::new(
+        "ctx-root-alpha",
+        "lease-auth-ctx-001",
+        "sha256:policy-decision-hash",
+        "sha256:observation-cut-hash",
+        "RESTRICTED-PII",
+    );
+
+    // ContextRoot preceded by valid authority succeeds
+    assert!(ContextGuard::verify_context_precedence(&context_root, &lease).is_ok());
+
+    // Mismatched authority lease reference fails closed
+    let other_lease = CapabilityLease::new(
+        "lease-wrong-id",
+        "principal:unknown",
+        "vector-db/customer-corpus",
+        vec!["read".into()],
+        chrono::Utc::now() + chrono::Duration::hours(1),
+    );
+    assert!(ContextGuard::verify_context_precedence(&context_root, &other_lease).is_err());
+
+    // ContextFaults: None succeeds
+    assert!(ContextGuard::assert_no_context_fault(None).is_ok());
+
+    // ContextFault: Stale epoch fails closed (no silent hallucination)
+    let stale = ContextFault::Stale {
+        current_epoch: 10,
+        requested_epoch: 9,
+    };
+    assert!(ContextGuard::assert_no_context_fault(Some(&stale)).is_err());
+
+    // ContextFault: Integrity failure fails closed
+    let corrupted = ContextFault::IntegrityFailure {
+        expected_digest: "sha256:1111".into(),
+        actual_digest: "sha256:2222".into(),
+    };
+    assert!(ContextGuard::assert_no_context_fault(Some(&corrupted)).is_err());
+
+    // ContextFault: Policy denied fails closed
+    let denied = ContextFault::PolicyDenied {
+        reason: "Tenant classification boundary crossed".into(),
+    };
+    assert!(ContextGuard::assert_no_context_fault(Some(&denied)).is_err());
+}
+
+#[test]
+fn test_lab17_srt_egress_proxy_external_decider_and_credential_injection() {
+    use ggagent_validation::{EgressProxyDecision, EgressProxyEngine, EgressProxyRequest};
+    use std::collections::BTreeMap;
+    use std::time::Duration;
+
+    let mut engine = EgressProxyEngine::new(
+        vec!["api.github.com".into(), "registry.npmjs.org".into()],
+        Duration::from_secs(5),
+    );
+    // Credential masking: agent never possesses static GitHub token; proxy injects it
+    engine.register_scoped_credential(
+        "api.github.com",
+        "Authorization",
+        "Bearer ghp_ephemeral_scoped_proxy_token_77",
+    );
+
+    // 1. Cloud IMDS exfiltration attempt is unconditionally DENIED
+    let imds_req = EgressProxyRequest {
+        client_id: "untrusted-agent".into(),
+        method: "GET".into(),
+        url: "http://169.254.169.254/latest/meta-data/iam/security-credentials/".into(),
+        destination_host: "169.254.169.254".into(),
+        destination_port: 80,
+        headers: BTreeMap::new(),
+        body_digest: None,
+    };
+    let imds_dec = engine
+        .evaluate_request(&imds_req, Duration::from_millis(10))
+        .unwrap();
+    match imds_dec {
+        EgressProxyDecision::Deny { reason } => {
+            assert!(reason.contains("IMDS"));
+        }
+        _ => panic!("IMDS must be denied"),
+    }
+
+    // 2. Unapproved domain is DENIED
+    let evil_req = EgressProxyRequest {
+        client_id: "untrusted-agent".into(),
+        method: "POST".into(),
+        url: "https://attacker.site/exfiltrate".into(),
+        destination_host: "attacker.site".into(),
+        destination_port: 443,
+        headers: BTreeMap::new(),
+        body_digest: Some("sha256:stolen-keys".into()),
+    };
+    let evil_dec = engine
+        .evaluate_request(&evil_req, Duration::from_millis(10))
+        .unwrap();
+    assert!(matches!(evil_dec, EgressProxyDecision::Deny { .. }));
+
+    // 3. Approved domain succeeds and has scoped credentials injected
+    let gh_req = EgressProxyRequest {
+        client_id: "coding-agent-01".into(),
+        method: "GET".into(),
+        url: "https://api.github.com/repos/org/repo/issues".into(),
+        destination_host: "api.github.com".into(),
+        destination_port: 443,
+        headers: BTreeMap::new(),
+        body_digest: None,
+    };
+    let gh_dec = engine
+        .evaluate_request(&gh_req, Duration::from_millis(25))
+        .unwrap();
+    match gh_dec {
+        EgressProxyDecision::Allow { injected_headers } => {
+            assert_eq!(
+                injected_headers.get("Authorization"),
+                Some(&"Bearer ghp_ephemeral_scoped_proxy_token_77".to_string())
+            );
+        }
+        _ => panic!("Approved domain must be Allowed with injected credentials"),
+    }
+
+    // 4. Timeout (>5 seconds) fails closed immediately
+    let timeout_res = engine.evaluate_request(&gh_req, Duration::from_millis(5001));
+    assert!(
+        timeout_res.is_err(),
+        "Request exceeding 5s timeout must fail closed"
+    );
+}

@@ -11,10 +11,13 @@
 
 pub mod agent_card;
 pub mod ard_validator;
+pub mod context_guard;
 pub mod effect_broker;
+pub mod egress_proxy;
 pub mod error;
 pub mod guards;
 pub mod handoff_validator;
+pub mod isolation_guard;
 pub mod mesh_orchestrator;
 pub mod network_guard;
 pub mod replay_engine;
@@ -26,10 +29,13 @@ pub mod workspace_staging;
 
 pub use agent_card::AgentCardValidator;
 pub use ard_validator::ArdValidator;
+pub use context_guard::ContextGuard;
 pub use effect_broker::{AtomicEffectBroker, EffectRequest};
+pub use egress_proxy::{EgressProxyDecision, EgressProxyEngine, EgressProxyRequest};
 pub use error::ValidationError;
 pub use guards::SecurityGuards;
 pub use handoff_validator::HandoffValidator;
+pub use isolation_guard::IsolationGuard;
 pub use mesh_orchestrator::{MeshExecutionReport, MeshOrchestrator, StageResult};
 pub use network_guard::NetworkEgressGuard;
 pub use replay_engine::{ReplayEngine, ResumedTaskState};
