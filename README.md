@@ -158,9 +158,11 @@ The test suite validates 13 formal execution contracts in `crates/ggagent-cli/te
 - [Agentic Resource Discovery (ARD)](https://agenticresourcediscovery.org/)
 - [in-toto Attestation Framework v1.0](https://in-toto.io)
 - [Protobuf Service Definitions](proto/a2a/v1/a2a.proto)
-- [Architecture Details](ARCHITECTURE.md)
+- [Architecture Details](docs/ARCHITECTURE.md)
 - [Security Model](SECURITY.md)
-- [77 Subagent Strategies Catalog](SUBAGENTS-77-CATALOG.md)
+- [77 Subagent Strategies Catalog](docs/SUBAGENTS-77-CATALOG.md)
+- [A2A & ARD Protocol Specification](docs/A2A-ARD-SPEC.md)
+- [Implementation Dossier](docs/IMPLEMENTATION-DOSSIER.md)
 
 ## License
 

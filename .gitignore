@@ -1,4 +1,5 @@
 target/
+bin/
 **/*.rs.bk
 Cargo.lock
 .DS_Store
@@ -6,3 +7,9 @@ Cargo.lock
 .env
 forensic-*.json
 sample-*.json
+receipt-*.json
+candidate_patch.diff
+_manifest/
+
+# Whitelist tracked files against global gitignore
+!AGENTS.md

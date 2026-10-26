@@ -29,4 +29,4 @@ We welcome contributions to `ckodex-ggagent-cli`. To maintain high structural as
 - [ ] `make clippy` passes with zero warnings.
 - [ ] `make test` runs and passes all unit tests.
 - [ ] `./bin/ggagent doctor` reports all systems nominal.
-- [ ] Any new subagent strategy or A2A capability is documented in `SUBAGENTS-77-CATALOG.md` or `A2A-ARD-SPEC.md`.
+- [ ] Any new subagent strategy or A2A capability is documented in `docs/SUBAGENTS-77-CATALOG.md` or `docs/A2A-ARD-SPEC.md`.
