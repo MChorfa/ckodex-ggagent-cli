@@ -14,7 +14,7 @@ data:
       "description": "Governed In-Cluster A2A & ARD Agent Platform with 77 Subagent Strategies",
       "protocol_version": "A2A/1.0",
       "authority": {
-        "root_fabric": "thales-trt-canada",
+        "root_fabric": "sovereign-trt-fabric",
         "tenant": "cluster-default",
         "namespace": "agent-system",
         "role": "AgentPlatformGateway"
